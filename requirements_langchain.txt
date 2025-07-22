@@ -1,0 +1,29 @@
+# LangChain 核心依赖
+langchain>=0.1.0
+langchain-google-genai>=0.0.5
+
+# 数据处理依赖
+pandas>=1.5.0
+numpy>=1.21.0
+
+# PDF 处理依赖
+PyPDF2>=3.0.0
+pdfplumber>=0.9.0
+pdfminer.six>=20221105
+
+# 文本处理依赖
+jieba>=0.42.1
+
+# 数据验证依赖
+pydantic>=2.0.0
+
+# 配置文件依赖
+PyYAML>=6.0
+
+# 异步处理依赖
+aiohttp>=3.8.0
+asyncio
+
+# 其他工具依赖
+requests>=2.28.0
+beautifulsoup4>=4.11.0 

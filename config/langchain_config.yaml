@@ -1,0 +1,43 @@
+# LangChain 配置
+langchain_enabled: true
+fallback_to_original: true
+
+# LLM 配置
+temperature: 0.1
+max_tokens: 2000
+max_memory_tokens: 4000
+
+# 记忆配置
+memory:
+  type: "conversation_buffer"
+  max_token_limit: 4000
+  return_messages: true
+
+# 链配置
+chains:
+  basic_chain:
+    enabled: true
+    template: "{prompt}"
+  
+  data_cleaning_chain:
+    enabled: false
+    template: "请根据以下规则清洗数据：\n规则：{rules}\n数据：{data}\n清洗后的数据："
+    input_variables: ["rules", "data"]
+  
+  analysis_chain:
+    enabled: false
+    template: "分析以下数据，提供关键洞察：{data}"
+    input_variables: ["data"]
+
+# 工具配置
+tools:
+  wikipedia:
+    enabled: false
+  financial_calculator:
+    enabled: false
+
+# 日志配置
+logging:
+  langchain_level: "INFO"
+  show_prompts: true
+  show_responses: true 

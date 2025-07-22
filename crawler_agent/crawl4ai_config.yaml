@@ -1,0 +1,530 @@
+# Crawl4AI爬虫代理配置文件 - 按数据种类分类
+
+# 数据保存配置
+save_dir: "crawl_results"  # 数据保存目录
+
+# LLM配置
+llm:
+  provider: "google/gemini-2.0-flash-exp"  # LLM提供商 - Gemini 2.0 Flash
+  api_key: "AIzaSyC-kdQIHRWYCufcjh-r00RMXjM7OgrIwQU"  # 需要设置你的Google API密钥
+  model: "gemini-2.0-flash-exp"
+  max_tokens: 4000
+  temperature: 0.1
+  timeout: 30
+
+# 爬虫配置
+crawler:
+  verbose: true
+  headless: true
+  browser_type: "chromium"
+  timeout: 30
+  max_retries: 3
+  concurrent_limit: 5  # 并发爬取限制
+  request_delay: 1.0   # 请求间隔（秒）
+
+# 数据源配置 - 按数据种类分类
+data_sources:
+  # 财务报表数据源
+  财务报表:
+    巨潮资讯网:
+      domain: "cninfo.com.cn"
+      base_url: "http://www.cninfo.com.cn"
+      url_template: "http://www.cninfo.com.cn/data20/financialData/{api_name}"
+      params:
+        scode: "000001"
+        sign: "4"
+      api_endpoints:
+        income: "getIncomeStatement"
+        balance: "getBalanceSheets"
+        cashflow: "getCashFlowStatement"
+      headers:
+        Referer: "http://www.cninfo.com.cn/new/disclosure/stock?orgId=gssz0000001&stockCode=000001"
+        Accept: "application/json, text/plain, */*"
+        Accept-Language: "zh-CN,zh;q=0.9"
+        User-Agent: "{random_user_agent}"
+        X-Timestamp: "{timestamp}"
+        X-Request-ID: "{random_uuid}"
+        Authorization: "Bearer ${CNINFO_API_KEY}"
+      cookies:
+        SF_cookie_4: "{random_uuid}"
+        session_id: "{random_uuid}"
+        token: "${CNINFO_TOKEN}"
+      priority: 1  # 优先级，数字越小优先级越高
+      save_dir: "data/raw/financial_reports/cninfo_financial_reports"
+    
+    深圳证券交易所官网:
+      domain: "szse.cn"
+      base_url: "http://www.szse.cn"
+      api_url: "http://www.szse.cn/api/disc/announcement/annList"
+      method: "POST"
+      save_dir: "output/financial_reports/szse_financial_reports"
+      params:
+        random: "{random_float}"
+      json:
+        seDate: ["", ""]
+        searchKey: ["摘要"]
+        stock: ["{company_code}"]
+        channelCode: ["listedNotice_disc"]
+        bigCategoryId: ["010301"]
+        pageSize: 50
+        pageNum: 1
+      headers:
+        Accept: "application/json, text/javascript, */*; q=0.01"
+        Accept-Language: "zh-CN,zh;q=0.9"
+        Cache-Control: "no-cache"
+        Connection: "keep-alive"
+        Content-Type: "application/json"
+        Origin: "http://www.szse.cn"
+        Pragma: "no-cache"
+        Referer: "http://www.szse.cn/disclosure/listed/notice/index.html"
+        User-Agent: "{random_user_agent}"
+        X-Request-Type: "ajax"
+        X-Requested-With: "XMLHttpRequest"
+      cookies:
+        SF_cookie_4: "{random_uuid}"
+        session_id: "{random_uuid}"
+      priority: 3
+    
+    东方财富网:
+      domain: "eastmoney.com"
+      base_url: "https://www.eastmoney.com"
+      url_template: "https://basic.10jqka.com.cn/{company_code}/finance.html"
+      params:
+        tab: "finance"
+      selectors:
+        title: ["h1", "h2", "h3"]
+        content: [".dupont_analysis_content", ".balanceSheet", ".cashFlow", "body"]
+        date: [".date", ".time", ".publish-time"]
+        table: ["table", ".table", ".data-table"]
+        financial_data: [".balanceSheet", ".cashFlow", ".dupont_analysis_content"]
+      priority: 4
+    
+    同花顺财经:
+      domain: "10jqka.com.cn"
+      base_url: "https://www.10jqka.com.cn"
+      url_template: "https://basic.10jqka.com.cn/{company_code}/finance.html"
+      params:
+        tab: "finance"
+      selectors:
+        title: ["h1", "h2", "h3"]
+        content: [".dupont_analysis_content", ".balanceSheet", ".cashFlow", "body"]
+        date: [".date", ".time", ".publish-time"]
+        table: ["table", ".table", ".data-table"]
+        financial_data: [".balanceSheet", ".cashFlow", ".dupont_analysis_content"]
+      priority: 5
+    
+    公司官网:
+      domain: "company_website"
+      search_strategy: "llm_google_search"
+      search_keywords:
+        - "{company_name} 官网 投资者关系"
+        - "{company_name} 官网 财务报告"
+        - "{company_name} 官网 年报"
+        - "{company_name} 官网 财务报表"
+      llm_prompt: |
+        请搜索并分析{company_name}的官方网站，找到以下信息：
+        1. 公司官网地址
+        2. 投资者关系页面
+        3. 财务报告下载页面
+        4. 最新的财务数据
+        
+        请以JSON格式返回结果，包含：
+        - website_url: 公司官网地址
+        - investor_page: 投资者关系页面
+        - financial_page: 财务报告页面
+        - latest_reports: 最新报告列表
+        - financial_data: 关键财务数据
+      priority: 6
+      save_dir: "output/financial_reports/website_financial_reports"
+  
+  # 公司公告数据源
+  公司公告:
+    # 上交所:
+    #   domain: "sse.com.cn"
+    #   base_url: "http://www.sse.com.cn"
+    #   api_url: "https://query.sse.com.cn/security/disclosure/queryCompanyBulletin.do"
+    #   method: "POST"
+    #   save_dir: "output/announcements/sse_announcements"
+    #   data:
+    #     stockCode: "{company_code}"
+    #     startDate: "{start_date}"
+    #     endDate: "{end_date}"
+    #     pageSize: 100
+    #     pageNum: 1
+    #     title: "公告"
+    #     bulletinType: ""
+    #     stockType: ""
+    #   headers:
+    #     Content-Type: "application/x-www-form-urlencoded"
+    #     Accept: "*/*"
+    #     Accept-Language: "zh-CN,zh;q=0.9"
+    #     Cache-Control: "no-cache"
+    #     Connection: "keep-alive"
+    #     Pragma: "no-cache"
+    #     Referer: "https://www.sse.com.cn/"
+    #     Sec-Fetch-Dest: "script"
+    #     Sec-Fetch-Mode: "no-cors"
+    #     Sec-Fetch-Site: "same-site"
+    #     User-Agent: "{random_user_agent}"
+    #     sec-ch-ua: '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"'
+    #     sec-ch-ua-mobile: "?0"
+    #     sec-ch-ua-platform: '"macOS"'
+    #   cookies:
+    #     gdp_user_id: "{random_uuid}"
+    #   priority: 1
+    深交所:
+      domain: "szse.cn"
+      base_url: "http://www.szse.cn"
+      api_url: "http://www.szse.cn/api/disc/announcement/annList"
+      method: "POST"
+      save_dir: "output/announcements/szse_announcements"
+      params:
+        random: "{random_float}"
+      json:
+        seDate: ["", ""]
+        searchKey: ["公告"]
+        stock: ["{company_code}"]
+        channelCode: ["listedNotice_disc"]
+        pageSize: 50
+        pageNum: 1
+      headers:
+        Accept: "application/json, text/javascript, */*; q=0.01"
+        Accept-Language: "zh-CN,zh;q=0.9"
+        Cache-Control: "no-cache"
+        Connection: "keep-alive"
+        Content-Type: "application/json"
+        Origin: "http://www.szse.cn"
+        Pragma: "no-cache"
+        Referer: "http://www.szse.cn/disclosure/listed/notice/index.html"
+        User-Agent: "{random_user_agent}"
+        X-Request-Type: "ajax"
+        X-Requested-With: "XMLHttpRequest"
+      cookies:
+        SF_cookie_4: "{random_uuid}"
+        session_id: "{random_uuid}"
+      priority: 2
+    公司官网:
+      domain: "company_website"
+      search_strategy: "llm_google_search"
+      search_keywords:
+        - "{company_name} 官网 公告"
+        - "{company_name} 官网 信息披露"
+        - "{company_name} 官网 新闻"
+      llm_prompt: |
+        请搜索并分析{company_name}的官方网站，找到以下信息：
+        1. 公司官网地址
+        2. 公告页面
+        3. 最新公告列表
+        4. 重要披露信息
+        请以JSON格式返回结果。
+      priority: 3
+    # 中国证监会官网:
+    #   domain: "csrc.gov.cn"
+    #   base_url: "http://www.csrc.gov.cn"
+    #   url_template: "http://www.csrc.gov.cn/pub/newsite/{company_code}/index.html"
+    #   params:
+    #     type: "csrc_announcement"
+    #   selectors:
+    #     title: ".title"
+    #     content: ".content"
+    #     date: ".date"
+    #   priority: 4
+    # 同花顺:
+    #   domain: "10jqka.com.cn"
+    #   base_url: "https://www.10jqka.com.cn"
+    #   url_template: "https://data.10jqka.com.cn/stock/{company_code}/ggmx/"
+    #   params:
+    #     type: "ggmx"
+    #   selectors:
+    #     title: ".title"
+    #     content: ".content"
+    #     date: ".date"
+    #   priority: 5
+    东方财富:
+      domain: "eastmoney.com"
+      base_url: "https://www.eastmoney.com"
+      url_template: "https://basic.10jqka.com.cn/{company_code}/company.html"
+      params:
+        tab: "company"
+      selectors:
+        title: ".title"
+        content: ".content"
+        date: ".date"
+      priority: 6
+    公司官网:
+      domain: "company_website"
+      search_strategy: "llm_google_search"
+      search_keywords:
+        - "{company_name} 官网 公告"
+        - "{company_name} 官网 信息披露"
+        - "{company_name} 官网 新闻"
+      llm_prompt: |
+        请搜索并分析{company_name}的官方网站，找到以下信息：
+        1. 公司官网地址
+        2. 公告页面
+        3. 最新公告列表
+        4. 重要披露信息
+        请以JSON格式返回结果。
+      priority: 10
+      save_dir: "output/announcements/website_announcements"
+  
+  # 行业研报数据源
+  行业研报:
+    东方财富:
+      domain: "eastmoney.com"
+      base_url: "https://www.eastmoney.com"
+      api_url: "https://reportapi.eastmoney.com/report/list"
+      method: "GET"
+      params:
+        industryCode: "{industry_code}"
+        pageSize: 20
+        pageNo: 1
+        fields: ""
+        qType: 1
+        orgCode: ""
+        rcode: ""
+        pcode: ""
+        lcode: ""
+        isNew: 1
+      headers:
+        Accept: "*/*"
+        Accept-Language: "zh-CN,zh;q=0.9"
+        Cache-Control: "no-cache"
+        Connection: "keep-alive"
+        Pragma: "no-cache"
+        Referer: "https://data.eastmoney.com/report/"
+        User-Agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+      priority: 1
+      save_dir: "data/raw/industry_reports/eastmoney"
+
+# 搜索关键词模板
+search_keywords:
+  财务报表:
+    - "{公司名称} 财务报表"
+    - "{公司名称} 财务报告"
+    - "{公司代码} 财务数据"
+    - "{公司名称} 年报"
+    - "{公司名称} 季报"
+    - "{公司名称} 资产负债表"
+    - "{公司名称} 利润表"
+    - "{公司名称} 现金流量表"
+    - "{公司名称} 财务分析"
+    - "{公司代码} 财务指标"
+  
+  公司公告:
+    - "{公司名称} 公告"
+    - "{公司名称} 信息披露"
+    - "{公司代码} 公告"
+    - "{公司名称} 重大事项"
+    - "{公司名称} 停牌公告"
+    - "{公司名称} 临时公告"
+    - "{公司名称} 定期报告"
+    - "{公司名称} 股东大会"
+    - "{公司名称} 董事会决议"
+    - "{公司代码} 重大事项"
+  
+  行业研报:
+    - "{公司名称} 研报"
+    - "{公司名称} 研究报告"
+    - "{公司名称} 投资分析"
+    - "{公司名称} 行业分析"
+    - "{公司代码} 研报"
+    - "{公司名称} 投资评级"
+    - "{公司名称} 目标价"
+    - "{公司名称} 投资建议"
+    - "{公司名称} 行业前景"
+    - "{公司代码} 投资分析"
+
+# 提取策略配置
+extraction_strategies:
+  # LLM提取策略
+  llm:
+    enabled: true
+    system_prompt: |
+      你是一个专业的金融数据提取助手。请从网页内容中提取以下结构化信息：
+      1. 标题：文档或公告的标题
+      2. 发布时间：文档的发布时间
+      3. 内容摘要：主要内容的关键信息
+      4. 重要数据：财务数据、关键指标等
+      5. 相关链接：文档中的相关链接
+      
+      请以JSON格式返回结果。
+    max_tokens: 4000
+    temperature: 0.1
+  
+  # CSS选择器提取策略
+  css_selector:
+    enabled: true
+    selectors:
+      title: [".title", "h1", "h2", ".headline"]
+      content: [".content", ".article", ".text", "p"]
+      date: [".date", ".time", ".publish-time"]
+      author: [".author", ".writer"]
+      source: [".source", ".from"]
+  
+  # XPath提取策略
+  xpath:
+    enabled: false
+    selectors:
+      title: "//h1 | //h2 | //div[@class='title']"
+      content: "//div[@class='content'] | //article | //div[@class='text']"
+      date: "//span[@class='date'] | //time | //div[@class='publish-time']"
+
+# 数据结构化处理配置
+data_processing:
+  # 财务报表处理
+  财务报表:
+    required_fields: ["title", "report_date", "financial_data", "summary"]
+    data_mapping:
+      title: "报告标题"
+      report_date: "报告日期"
+      financial_data: "财务数据"
+      summary: "摘要"
+    validation_rules:
+      - "必须包含报告日期"
+      - "必须包含财务数据"
+  
+  # 公司公告处理
+  公司公告:
+    required_fields: ["title", "publish_date", "content", "type"]
+    data_mapping:
+      title: "公告标题"
+      publish_date: "发布日期"
+      content: "公告内容"
+      type: "公告类型"
+    validation_rules:
+      - "必须包含发布日期"
+      - "必须包含公告内容"
+  
+  # 行业研报处理
+  行业研报:
+    required_fields: ["title", "publish_date", "author", "rating", "target_price"]
+    data_mapping:
+      title: "研报标题"
+      publish_date: "发布日期"
+      author: "分析师"
+      rating: "投资评级"
+      target_price: "目标价"
+    validation_rules:
+      - "必须包含发布日期"
+      - "必须包含分析师信息"
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "[%(asctime)s][%(levelname)s][%(name)s] %(message)s"
+  file: "logs/crawl4ai.log"
+  max_size: "10MB"
+  backup_count: 5
+
+# 缓存配置
+cache:
+  enabled: true
+  ttl: 3600  # 缓存时间（秒）
+  max_size: 1000  # 最大缓存条目数
+
+# 错误处理和重试配置
+error_handling:
+  max_retries: 3
+  retry_delay: 2.0
+  exponential_backoff: true
+  ignore_errors: ["404", "403"]  # 忽略的错误类型
+
+# 巨潮资讯网专用配置
+cninfo:
+  # 搜索配置
+  search:
+    base_url: "http://www.cninfo.com.cn/new/hisAnnouncement/query"
+    default_page_size: 30
+    max_pages: 5
+    search_keywords:
+      - "{公司名称} 财务报表"
+      - "{公司名称} 财务报告"
+      - "{公司名称} 年报"
+      - "{公司名称} 季报"
+      - "{公司名称} 半年报"
+  
+  # 财务报告类型过滤
+  financial_report_types:
+    - "年度报告"
+    - "半年度报告"
+    - "第一季度报告"
+    - "第三季度报告"
+    - "财务报表"
+    - "财务报告"
+  
+  # 提取配置
+  extraction:
+    # 搜索页面提取
+    search_page:
+      announcements_selector: "announcements"
+      title_field: "announcementTitle"
+      date_field: "announcementDate"
+      url_field: "adjunctUrl"
+      type_field: "announcementType"
+    
+    # 详情页面提取
+    detail_page:
+      # 基本信息提取
+      basic_info:
+        title_selectors: ["h1", ".title", ".report-title"]
+        date_selectors: [".date", ".publish-date", ".report-date"]
+        company_selectors: [".company", ".company-name"]
+      
+      # 财务数据提取
+      financial_data:
+        revenue_selectors: [".revenue", ".operating-revenue"]
+        profit_selectors: [".net-profit", ".profit"]
+        assets_selectors: [".total-assets", ".assets"]
+        liabilities_selectors: [".total-liabilities", ".liabilities"]
+        equity_selectors: [".shareholders-equity", ".equity"]
+        eps_selectors: [".eps", ".earnings-per-share"]
+        roe_selectors: [".roe", ".return-on-equity"]
+      
+      # 财务报表内容提取
+      statements:
+        balance_sheet_selectors: [".balance-sheet", "#balance-sheet"]
+        income_statement_selectors: [".income-statement", "#income-statement"]
+        cash_flow_selectors: [".cash-flow", "#cash-flow"]
+  
+  # 数据处理配置
+  data_processing:
+    # 数据清洗规则
+    cleaning_rules:
+      - "移除HTML标签"
+      - "标准化数字格式"
+      - "统一日期格式"
+      - "去除多余空格"
+    
+    # 数据验证规则
+    validation_rules:
+      - "必须包含报告标题"
+      - "必须包含报告日期"
+      - "财务数据必须为数字格式"
+    
+    # 数据映射
+    field_mapping:
+      announcementTitle: "title"
+      announcementDate: "publish_date"
+      adjunctUrl: "report_url"
+      announcementType: "report_type"
+      stockCode: "company_code"
+      secName: "company_name"
+  
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 7200  # 2小时缓存
+    max_size: 500
+  
+  # 请求配置
+  request:
+    timeout: 30
+    retry_times: 3
+    retry_delay: 2
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    headers:
+      Accept: "application/json, text/plain, */*"
+      Accept-Language: "zh-CN,zh;q=0.9,en;q=0.8"
+      Referer: "http://www.cninfo.com.cn/"
+      Origin: "http://www.cninfo.com.cn" 
