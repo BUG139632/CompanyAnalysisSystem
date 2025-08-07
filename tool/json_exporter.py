@@ -2,8 +2,6 @@ import os
 import json
 from datetime import datetime
 import markdown2
-from fpdf import FPDF
-from weasyprint import HTML
 import re
 
 # 新增：为三类导出分别指定子目录
@@ -23,26 +21,16 @@ def export_to_txt(content, filename_prefix, output_dir):
     print(f"[导出] TXT文件已保存到: {os.path.abspath(txt_path)}")
     return txt_path
 
-# 用weasyprint导出pdf（支持html/markdown）
+# PDF导出功能已禁用，只保留TXT导出
 def export_html_to_pdf(html_content, filename_prefix, output_dir):
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    pdf_path = os.path.join(output_dir, f"{filename_prefix}_{timestamp}.pdf")
-    HTML(string=html_content).write_pdf(pdf_path)
-    print(f"[导出] PDF文件已保存到: {os.path.abspath(pdf_path)}")
-    return pdf_path
+    """PDF导出功能已禁用"""
+    print(f"[导出] PDF导出功能已禁用，只输出TXT文件")
+    return None
 
-# 纯文本转pdf（用fpdf）
 def export_text_to_pdf(text_content, filename_prefix, output_dir):
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    pdf_path = os.path.join(output_dir, f"{filename_prefix}_{timestamp}.pdf")
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    for line in text_content.split('\n'):
-        pdf.multi_cell(0, 10, line)
-    pdf.output(pdf_path)
-    print(f"[导出] PDF文件已保存到: {os.path.abspath(pdf_path)}")
-    return pdf_path
+    """PDF导出功能已禁用"""
+    print(f"[导出] PDF导出功能已禁用，只输出TXT文件")
+    return None
 
 # 简单判断内容是否为markdown
 def is_markdown(content):
@@ -50,12 +38,8 @@ def is_markdown(content):
 
 # 通用导出函数
 def export_content(content, filename_prefix, output_dir):
+    # 只输出TXT文件，PDF功能已禁用
     export_to_txt(content, filename_prefix, output_dir)
-    if is_markdown(content):
-        html = markdown2.markdown(content)
-        export_html_to_pdf(html, filename_prefix, output_dir)
-    else:
-        export_text_to_pdf(content, filename_prefix, output_dir)
 
 def strip_json_code_block(md_content):
     # 去除markdown中的```json ... ```代码块

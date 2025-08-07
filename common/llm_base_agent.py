@@ -34,7 +34,7 @@ class LLMBaseAgent(BaseAgent):
                 model="gemini-2.0-flash",
                 google_api_key=self.gemini_api_key,
                 temperature=self.config.get('temperature', 0.1),
-                max_tokens=self.config.get('max_tokens', 2000)
+                max_tokens=self.config.get('max_tokens', 8000)
             )
             
             # 初始化记忆组件

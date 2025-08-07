@@ -443,39 +443,69 @@ def get_announcement_detail(detail_url: str, cookies: dict, headers: dict) -> di
         } 
 
 def get_pdf_link_by_selenium(detail_url):
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    """
+    使用Selenium获取PDF链接
+    """
     try:
-        driver.get(detail_url)
-        time.sleep(2)
-        # 查找"查看pdf原文"按钮 - 使用多种方式
-        pdf_btns = []
-        # 方式1: 通过class属性查找
-        pdf_btns.extend(driver.find_elements(By.CSS_SELECTOR, "a.pdf-link"))
-        # 方式2: 通过包含文本查找
-        pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看PDF原文')]"))
-        pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看pdf原文')]"))
-        # 方式3: 通过span内的文本查找父级a标签
-        pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看PDF原文')]]"))
-        pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看pdf原文')]]"))
-        # 去重
-        pdf_btns = list(set(pdf_btns))
-        for btn in pdf_btns:
-            href = btn.get_attribute('href')
-            text = btn.text.strip()
-            if href and href.lower().endswith('.pdf'):
-                pdf_link = href
-                break
-        return pdf_link
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.common.by import By
+        from webdriver_manager.chrome import ChromeDriverManager
+        import time
+        
+        options = Options()
+        options.add_argument('--headless')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        
+        # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+        import os
+        if os.path.exists('/.dockerenv'):
+            options.binary_location = '/usr/bin/chromium'
+            service = Service('/usr/bin/chromedriver')
+        else:
+            service = Service(ChromeDriverManager().install())
+        
+        driver = webdriver.Chrome(service=service, options=options)
+        
+        try:
+            driver.get(detail_url)
+            time.sleep(3)
+            
+            # 查找"查看pdf原文"按钮 - 使用多种方式
+            pdf_btns = []
+            # 方式1: 通过class属性查找
+            pdf_btns.extend(driver.find_elements(By.CSS_SELECTOR, "a.pdf-link"))
+            # 方式2: 通过包含文本查找
+            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看PDF原文')]"))
+            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看pdf原文')]"))
+            # 方式3: 通过span内的文本查找父级a标签
+            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看PDF原文')]]"))
+            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看pdf原文')]]"))
+            
+            # 去重
+            pdf_btns = list(set(pdf_btns))
+            pdf_link = None
+            for btn in pdf_btns:
+                href = btn.get_attribute('href')
+                text = btn.text.strip()
+                if href and href.lower().endswith('.pdf'):
+                    pdf_link = href
+                    break
+            
+            return pdf_link
+            
+        finally:
+            driver.quit()
+            
     except Exception as e:
         print(f'[selenium] 获取PDF链接失败: {e}')
         return None
-    finally:
-        driver.quit()
 
 def download_pdf(pdf_url, save_dir):
     import os
@@ -664,34 +694,58 @@ def fetch_eastmoney_industry_reports_by_company(
         report['detail_url'] = detail_url
         print(f"处理第{i+1}条研报: {detail_url}")
         try:
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--no-sandbox')
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-            driver.get(detail_url)
-            time.sleep(4)
-            pdf_link = None
-            # 只查找"查看pdf原文"按钮
-            # 查找"查看pdf原文"按钮 - 使用多种方式
-            pdf_btns = []
-            # 方式1: 通过class属性查找
-            pdf_btns.extend(driver.find_elements(By.CSS_SELECTOR, "a.pdf-link"))
-            # 方式2: 通过包含文本查找
-            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看PDF原文')]"))
-            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看pdf原文')]"))
-            # 方式3: 通过span内的文本查找父级a标签
-            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看PDF原文')]]"))
-            pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看pdf原文')]]"))
-            # 去重
-            pdf_btns = list(set(pdf_btns))
-            for btn in pdf_btns:
-                href = btn.get_attribute('href')
-                text = btn.text.strip()
-                if href and href.lower().endswith('.pdf'):
-                    pdf_link = href
-                    break
-            driver.quit()
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            from selenium.webdriver.chrome.service import Service
+            from selenium.webdriver.common.by import By
+            from webdriver_manager.chrome import ChromeDriverManager
+            import time
+            
+            options = Options()
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option('useAutomationExtension', False)
+            
+            # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+            import os
+            if os.path.exists('/.dockerenv'):
+                options.binary_location = '/usr/bin/chromium'
+                service = Service('/usr/bin/chromedriver')
+            else:
+                service = Service(ChromeDriverManager().install())
+            
+            driver = webdriver.Chrome(service=service, options=options)
+            
+            try:
+                driver.get(detail_url)
+                time.sleep(4)
+                
+                pdf_link = None
+                # 只查找"查看pdf原文"按钮
+                # 查找"查看pdf原文"按钮 - 使用多种方式
+                pdf_btns = []
+                # 方式1: 通过class属性查找
+                pdf_btns.extend(driver.find_elements(By.CSS_SELECTOR, "a.pdf-link"))
+                # 方式2: 通过包含文本查找
+                pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看PDF原文')]"))
+                pdf_btns.extend(driver.find_elements(By.XPATH, "//a[contains(text(), '查看pdf原文')]"))
+                # 方式3: 通过span内的文本查找父级a标签
+                pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看PDF原文')]]"))
+                pdf_btns.extend(driver.find_elements(By.XPATH, "//a[.//span[contains(text(), '查看pdf原文')]]"))
+                # 去重
+                pdf_btns = list(set(pdf_btns))
+                for btn in pdf_btns:
+                    href = btn.get_attribute('href')
+                    text = btn.text.strip()
+                    if href and href.lower().endswith('.pdf'):
+                        pdf_link = href
+                        break
+            finally:
+                driver.quit()
             report['pdf_url'] = pdf_link
             if pdf_link and pdf_downloaded < max_pdfs:
                 pdf_filename = os.path.join(pdf_save_dir, os.path.basename(pdf_link.split('?')[0]))

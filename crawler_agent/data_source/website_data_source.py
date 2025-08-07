@@ -18,38 +18,47 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
 
 def search_company_website(company_name: str, llm_func=None) -> Optional[str]:
     """
-    通过Selenium爬取Google搜索结果页，提取公司官网首页链接。
+    通过Playwright爬取Google搜索结果页，提取公司官网首页链接。
     :param company_name: 公司名称
     :param llm_func: 可选，LLM辅助生成搜索关键词
     :return: 官网URL或None
     """
-    from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    import time
-    
-    # 构造搜索关键词
-    query = f"{company_name} 官网"
-    url = f"https://www.google.com/search?q={query}"
-    print(f"[官网采集] Google搜索: {url}")
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('user-agent={}'.format(USER_AGENT))
-    driver = webdriver.Chrome(options=options)
-    driver.get(url)
-    time.sleep(2)
-    # 提取第一个自然结果
-    results = driver.find_elements(By.CSS_SELECTOR, 'div.yuRUbf > a')
-    if results:
-        link = results[0].get_attribute('href')
-        print(f"[官网采集] 搜索到官网: {link}")
-        driver.quit()
-        return link
-    print("[官网采集] 未找到官网")
-    driver.quit()
-    return None
+    try:
+        from playwright.sync_api import sync_playwright
+        import time
+        
+        # 构造搜索关键词
+        query = f"{company_name} 官网"
+        url = f"https://www.google.com/search?q={query}"
+        print(f"[官网采集] Google搜索: {url}")
+        
+        with sync_playwright() as p:
+            # 启动浏览器
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            
+            # 设置用户代理
+            page.set_extra_http_headers({"User-Agent": USER_AGENT})
+            
+            # 访问搜索页面
+            page.goto(url)
+            page.wait_for_load_state('networkidle')
+            
+            # 提取第一个自然结果
+            results = page.query_selector_all('div.yuRUbf > a')
+            if results:
+                link = results[0].get_attribute('href')
+                print(f"[官网采集] 搜索到官网: {link}")
+                browser.close()
+                return link
+            
+            print("[官网采集] 未找到官网")
+            browser.close()
+            return None
+            
+    except Exception as e:
+        print(f"[官网采集] Playwright功能失败: {e}")
+        return None
 
 
 def find_investor_page(website_url: str, llm_func=None) -> Optional[str]:

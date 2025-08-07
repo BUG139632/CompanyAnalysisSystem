@@ -1,0 +1,55 @@
+# .dockerignore
+# 忽略不需要复制到 Docker 镜像的文件
+
+# 输出和数据目录（通过卷挂载）
+output/
+data/
+logs/
+
+# Git 相关
+.git/
+.gitignore
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+
+# 日志文件
+*.log
+
+# 测试文件
+test_*
+*_test.py
+
+# 文档文件
+*.md
+docs/
+
+# 其他不需要的文件
+README.md
+CONTRIBUTING.md
+
+ 
