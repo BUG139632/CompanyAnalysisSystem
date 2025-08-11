@@ -170,6 +170,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
+    permissions:
+      contents: write
+      packages: write
+    
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
