@@ -69,6 +69,17 @@ class LLMBaseAgent(BaseAgent):
         prompt: 输入提示
         kwargs: 其他 LLM 参数
         """
+        # ------ 新增：自动测试模式下返回占位响应 ------
+        if os.getenv("AUTO_TEST") == "1":
+            self.logger.info("[AUTO_TEST] 跳过 LLM 调用，返回占位响应")
+            return {
+                "analysis_result": "这是自动测试模式的占位分析结果。在实际运行中，这里会包含详细的AI分析内容。",
+                "recommended_visualization_metrics": ["revenue", "net_profit", "roe"],
+                "test_mode": True,
+                "status": "success"
+            }
+        # ---------------------------------------------------
+        
         # 如果启用了 LangChain，优先使用
         if self.langchain_enabled and self.llm:
             try:

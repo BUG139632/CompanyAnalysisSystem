@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 固定容器名
+CONTAINER_NAME="investment-analysis-container"
+
 echo "🚀 快速启动投资分析系统"
 echo "=" * 40
 
@@ -7,6 +10,12 @@ echo "=" * 40
 if [[ "$(docker images -q investment-analysis 2> /dev/null)" == "" ]]; then
     echo "🔨 首次运行，正在构建 Docker 镜像..."
     docker build -t investment-analysis .
+fi
+
+# 删除旧容器（如果存在）
+if [[ "$(docker ps -aq -f name=^/${CONTAINER_NAME}$)" ]]; then
+    echo "🗑️  删除旧容器: ${CONTAINER_NAME}"
+    docker rm -f ${CONTAINER_NAME}
 fi
 
 # 创建目录
@@ -26,6 +35,7 @@ echo "=" * 40
 
 # 运行容器
 docker run -it \
+    --name ${CONTAINER_NAME} \
     -v "$(pwd)/output:/app/output" \
     -v "$(pwd)/data:/app/data" \
     -v "$(pwd)/logs:/app/logs" \

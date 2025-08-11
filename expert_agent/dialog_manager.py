@@ -13,6 +13,11 @@ class DialogManager:
         self.dialog_history = []
 
     def run(self, save_path=None):
+        # 检测是否为自动测试环境
+        if os.getenv("AUTO_TEST") == "1":
+            print("🧪 自动测试模式，跳过多轮对话")
+            return
+            
         print("欢迎进入智能分析多轮对话系统。输入 exit 可随时退出。")
         while True:
             user_question = input("请输入你对本维度的进一步问题（输入exit退出）：")
@@ -53,7 +58,11 @@ class DialogManager:
                     print("理由：", result["reasons"])
                     print("风险：", result["risks"])
                     # 新增：询问用户是否需要进一步分析
-                    user_input = input("是否需要对这些策略进行进一步的风险与收益分析？(y/n)：")
+                    if os.getenv("AUTO_TEST") == "1":
+                        print("🧪 自动测试模式，跳过进一步分析")
+                        user_input = "n"
+                    else:
+                        user_input = input("是否需要对这些策略进行进一步的风险与收益分析？(y/n)：")
                     if user_input.lower().startswith("y"):
                         # 调用 business agent
                         try:

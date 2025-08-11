@@ -56,6 +56,12 @@ def get_user_choice() -> str:
     Returns:
         用户选择的模式代码
     """
+    # 检测是否为自动测试环境
+    if os.getenv("AUTO_TEST") == "1":
+        # 在自动测试环境下，返回第一个可用的分析模式
+        print("🧪 自动测试模式，使用默认分析模式: 管理模式分析")
+        return "1"
+    
     while True:
         try:
             choice = input("\n请选择要分析的模式 (输入数字): ").strip()
@@ -73,6 +79,9 @@ def get_user_choice() -> str:
             return "0"
         except Exception as e:
             print(f"❌ 输入错误: {e}")
+            # 在自动测试中如果出现错误，返回退出
+            if os.getenv("AUTO_TEST") == "1":
+                return "0"
 
 
 def analyze_management_model(output_path: str = "data/analysis/management_analysis.json") -> Dict[str, Any]:
@@ -616,10 +625,15 @@ def run_interactive_analysis():
         else:
             print(f"❌ 分析失败: {result['error']}")
         try:
-            continue_choice = input("\n是否继续分析其他模式？(y/n): ").strip().lower()
-            if continue_choice not in ['y', 'yes', '是']:
-                print("感谢使用，再见！")
+            # 检测是否为自动测试环境
+            if os.getenv("AUTO_TEST") == "1":
+                print("🧪 自动测试模式，分析完成后自动退出")
                 break
+            else:
+                continue_choice = input("\n是否继续分析其他模式？(y/n): ").strip().lower()
+                if continue_choice not in ['y', 'yes', '是']:
+                    print("感谢使用，再见！")
+                    break
         except KeyboardInterrupt:
             print("\n\n感谢使用，再见！")
             break

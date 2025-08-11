@@ -1,0 +1,218 @@
+name: 投资分析系统自动部署
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  DOCKER_IMAGE_NAME: investment-analysis
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-test:
+    name: 构建和测试
+    runs-on: ubuntu-latest
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Python 环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        
+    - name: 设置 Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 登录到 GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 提取元数据
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=test-${{ github.run_number }}
+        
+    - name: 构建并推送测试镜像
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: 运行 CI 自检
+      run: |
+        echo "🧪 运行 CI 自检测试..."
+        
+        # 使用刚推送的镜像进行自检
+        TEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
+        
+        # 先拉取镜像到本地以便 ci_check.sh 使用
+        docker pull $TEST_IMAGE
+        docker tag $TEST_IMAGE investment-analysis:ci-test
+        
+        # 运行 CI 自检脚本
+        chmod +x scripts/ci_check.sh
+        scripts/ci_check.sh investment-analysis:ci-test
+      env:
+        AUTO_TEST: "1"
+        COMPANY_NAME: "测试公司"
+        GEMINI_API_KEY: ""
+        
+    - name: 上传构建日志
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: build-logs-${{ github.run_number }}
+        path: |
+          *.log
+          logs/
+        retention-days: 7
+          
+  deploy:
+    name: 部署镜像
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: 设置 Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 登录到 GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 部署已测试的镜像
+      run: |
+        echo "🚀 开始部署已测试通过的镜像..."
+        
+        # 从 build-and-test 阶段获取已测试的镜像
+        TEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
+        LATEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+        
+        # 拉取测试镜像
+        docker pull $TEST_IMAGE
+        
+        # 为测试镜像打上 latest 标签
+        docker tag $TEST_IMAGE $LATEST_IMAGE
+        
+        # 推送 latest 镜像
+        docker push $LATEST_IMAGE
+        
+        echo "✅ 镜像部署完成！"
+        echo "📦 已部署镜像: $LATEST_IMAGE"
+        echo "🔍 原测试镜像: $TEST_IMAGE"
+        
+    - name: 生成部署摘要
+      run: |
+        echo "## 🚀 部署摘要" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**镜像信息:**" >> $GITHUB_STEP_SUMMARY
+        echo "- 仓库: \`${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 分支: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 提交: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 构建号: \`${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 测试镜像: \`${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 部署镜像: \`${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**部署流程:**" >> $GITHUB_STEP_SUMMARY
+        echo "1. ✅ 构建测试镜像并通过所有测试" >> $GITHUB_STEP_SUMMARY
+        echo "2. ✅ 将测试镜像重新标记为 latest" >> $GITHUB_STEP_SUMMARY
+        echo "3. ✅ 推送到 GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**使用方式:**" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "# 拉取最新镜像" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# 运行容器" >> $GITHUB_STEP_SUMMARY
+        echo "docker run -it --name investment-analysis-container \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -v \$(pwd)/output:/app/output \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -v \$(pwd)/data:/app/data \\" >> $GITHUB_STEP_SUMMARY
+        echo "  -e GEMINI_API_KEY=your_api_key \\" >> $GITHUB_STEP_SUMMARY
+        echo "  ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  release:
+    name: 创建发布
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 生成发布标签
+      id: tag
+      run: |
+        TAG="v$(date +'%Y.%m.%d')-$(echo ${{ github.sha }} | cut -c1-7)"
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "🏷️ 生成发布标签: $TAG"
+        
+    - name: 创建 GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: 投资分析系统 ${{ steps.tag.outputs.tag }}
+        body: |
+          ## 🚀 投资分析系统自动发布
+          
+          **发布信息:**
+          - 提交: ${{ github.sha }}
+          - 分支: ${{ github.ref_name }}
+          - 构建时间: ${{ github.event.head_commit.timestamp }}
+          
+          **Docker 镜像:**
+          ```bash
+          docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          ```
+          
+          **快速启动:**
+          ```bash
+          # 设置 API Key
+          export GEMINI_API_KEY=your_gemini_api_key
+          
+          # 运行容器
+          docker run -it --name investment-analysis-container \
+            -v $(pwd)/output:/app/output \
+            -v $(pwd)/data:/app/data \
+            -e GEMINI_API_KEY=$GEMINI_API_KEY \
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          ```
+          
+          ## 📋 更新内容
+          ${{ github.event.head_commit.message }}
+        draft: false
+        prerelease: false 

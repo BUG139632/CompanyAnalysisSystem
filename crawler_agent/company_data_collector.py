@@ -165,6 +165,25 @@ class CompanyDataCollector:
         :param company_name: 公司名称
         :return: 采集结果字典
         """
+        # ------ 新增：自动测试模式下直接返回占位数据 ------
+        if os.getenv("AUTO_TEST") == "1":
+            print(f"🧪 [AUTO_TEST] 跳过爬虫，直接返回占位数据 ({company_name})")
+            return {
+                "company_name": company_name,
+                "company_code": "000000",
+                "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "eastmoney_announcements": [],
+                "eastmoney_annual_reports": [],
+                "eastmoney_industry_reports": [],
+                "cninfo_financial_reports": [],
+                "szse_annual_reports": [],
+                "sse_annual_reports": [],
+                "official_website_data": {},
+                "crawl_skipped": True,
+                "test_mode": True
+            }
+        # ---------------------------------------------------
+        
         print(f"\n{'='*60}")
         print(f"开始采集公司数据: {company_name}")
         print(f"{'='*60}")

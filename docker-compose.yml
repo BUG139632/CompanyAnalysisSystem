@@ -3,7 +3,7 @@ version: '3.8'
 services:
   investment-analysis:
     build: .
-    container_name: investment-analysis
+    container_name: investment-analysis-container
     volumes:
       # 挂载输出目录 - 用户可以直接访问
       - ./output:/app/output

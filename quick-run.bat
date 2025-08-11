@@ -1,6 +1,9 @@
 @echo off
 REM quick-run.bat
 
+REM 固定容器名
+set CONTAINER_NAME=investment-analysis-container
+
 echo 🚀 快速启动投资分析系统
 echo ========================================
 
@@ -9,6 +12,13 @@ docker images investment-analysis >nul 2>&1
 if errorlevel 1 (
     echo 🔨 首次运行，正在构建 Docker 镜像...
     docker build -t investment-analysis .
+)
+
+REM 删除旧容器（如果存在）
+docker ps -aq -f name=^/%CONTAINER_NAME%$ >nul 2>&1
+if not errorlevel 1 (
+    echo 🗑️  删除旧容器: %CONTAINER_NAME%
+    docker rm -f %CONTAINER_NAME%
 )
 
 REM 创建目录
@@ -30,6 +40,7 @@ echo ========================================
 
 REM 运行容器
 docker run -it ^
+    --name %CONTAINER_NAME% ^
     -v "%cd%/output:/app/output" ^
     -v "%cd%/data:/app/data" ^
     -v "%cd%/logs:/app/logs" ^

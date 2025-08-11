@@ -3,6 +3,7 @@
 """
 主程序入口
 """
+import os
 from crawler_agent.company_data_collector import (
     collect_single_company_data
 )
@@ -15,11 +16,17 @@ def main():
     print("🚀 公司数据采集与清洗系统启动")
     print("=" * 50)
     
-    # 用户交互输入公司名称
-    user_input = input("请输入目标公司名称：\n> ").strip()
-    if not user_input:
-        print("未输入有效公司名称，程序退出。")
-        return
+    # 检测是否为自动测试环境
+    if os.getenv("AUTO_TEST") == "1":
+        user_input = os.getenv("COMPANY_NAME", "测试公司")
+        print(f"🧪 自动测试模式，使用公司名称: {user_input}")
+    else:
+        # 用户交互输入公司名称
+        user_input = input("请输入目标公司名称：\n> ").strip()
+        if not user_input:
+            print("未输入有效公司名称，程序退出。")
+            return
+    
     test_companies = [user_input]
     
 
