@@ -66,7 +66,8 @@ jobs:
         echo "🧪 运行 CI 自检测试..."
         
         # 使用刚推送的镜像进行自检
-        TEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
+        OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        TEST_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
         
         # 先拉取镜像到本地以便 ci_check.sh 使用
         docker pull $TEST_IMAGE
@@ -116,7 +117,8 @@ jobs:
         echo "🚀 开始部署已测试通过的镜像..."
         
         # 从 build-and-test 阶段获取已测试的镜像
-        TEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
+        OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        TEST_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
         LATEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
         
         # 拉取测试镜像
