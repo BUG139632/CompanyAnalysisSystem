@@ -119,7 +119,7 @@ jobs:
         # 从 build-and-test 阶段获取已测试的镜像
         OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
         TEST_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
-        LATEST_IMAGE="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.DOCKER_IMAGE_NAME }}:latest"
+        LATEST_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:latest"
         
         # 拉取测试镜像
         docker pull $TEST_IMAGE
