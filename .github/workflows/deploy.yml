@@ -16,7 +16,7 @@ jobs:
     name: 构建和测试
     runs-on: ubuntu-latest
     env:
-      OWNER_LOWER: ${{ toLower(github.repository_owner) }}
+      OWNER: ${{ github.repository_owner }}
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-tags: ${{ steps.meta.outputs.tags }}
@@ -44,7 +44,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.DOCKER_IMAGE_NAME }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -68,7 +68,7 @@ jobs:
         echo "🧪 运行 CI 自检测试..."
         
         # 使用刚推送的镜像进行自检
-        OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        OWNER_LOWER=$(echo "${{ env.OWNER }}" | tr '[:upper:]' '[:lower:]')
         TEST_IMAGE="${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}"
         
         # 先拉取镜像到本地以便 ci_check.sh 使用
