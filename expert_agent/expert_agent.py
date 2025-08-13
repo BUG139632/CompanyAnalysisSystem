@@ -1,3 +1,12 @@
+import warnings
+try:
+    from langchain.utils import LangChainDeprecationWarning
+    warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
+except ImportError:
+    # 旧版本 LangChain 无此类；退化为忽略所有 DeprecationWarning 且过滤包含关键词的warning
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", message=".*LangChainDeprecationWarning.*")
+
 from common.llm_base_agent import LLMBaseAgent
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings

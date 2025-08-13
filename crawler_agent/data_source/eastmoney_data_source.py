@@ -11,46 +11,68 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 from common.llm_base_agent import LLMBaseAgent
+import logging
+
+# 压低 webdriver_manager 和 selenium 的日志级别，避免控制台噪声
+logging.getLogger("WDM").setLevel(logging.ERROR)
+logging.getLogger("webdriver_manager").setLevel(logging.ERROR)
+logging.getLogger("selenium").setLevel(logging.WARNING)
 
 def get_fresh_eastmoney_session():
     """
-    自动抓取东方财富网最新的cookie和headers
+    自动抓取东方财富网最新的cookie和headers；增加重试与备用域名，超时后 graceful fallback。
     :return: tuple (cookies_dict, headers_dict)
     """
-    import requests
+    import requests, random, time as _time
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
     session = requests.Session()
+    # retry config
+    retry_strategy = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retry_strategy))
     session.headers.update({
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
     })
-    try:
-        print("正在访问东方财富网主页获取session...")
-        response = session.get('https://data.eastmoney.com/report/industry.jshtml', timeout=10)
-        response.raise_for_status()
-        cookies = session.cookies.get_dict()
-        headers = {
-            'Accept': '*/*',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Pragma': 'no-cache',
-            'User-Agent': session.headers['User-Agent'],
-            'Referer': 'https://data.eastmoney.com/report/industry.jshtml',
-            'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"macOS"',
-        }
-        print(f"成功获取东方财富session，cookies数量: {len(cookies)}")
-        return cookies, headers
-    except Exception as e:
-        print(f"自动获取东方财富session失败: {e}")
-        return {}, {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-        }
+
+    candidate_urls = [
+        'https://data.eastmoney.com/report/industry.jshtml',
+        'https://www.eastmoney.com',
+        'https://quote.eastmoney.com/center'
+    ]
+    for url in candidate_urls:
+        try:
+            if os.environ.get("QUIET", "1") != "1":
+                print(f"正在访问东方财富 {url} 获取session...")
+            resp = session.get(url, timeout=15)
+            resp.raise_for_status()
+            cookies = session.cookies.get_dict()
+            if cookies:
+                headers = {
+                    'Accept': '*/*',
+                    'Accept-Language': 'zh-CN,zh;q=0.9',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Pragma': 'no-cache',
+                    'User-Agent': session.headers['User-Agent'],
+                    'Referer': url,
+                }
+                if os.environ.get("QUIET", "1") != "1":
+                    print(f"成功获取东方财富session，cookies数量: {len(cookies)}")
+                return cookies, headers
+        except Exception as e:
+            # 随机等待再重试下一 URL
+            _time.sleep(random.uniform(0.5,1.5))
+            if os.environ.get("QUIET", "1") != "1":
+                print(f"获取 {url} 失败: {e}")
+            continue
+    # 全部失败 fallback
+    if os.environ.get("QUIET", "1") != "1":
+        print("自动获取东方财富session失败，使用最小 headers 继续")
+    return {}, {
+        'User-Agent': session.headers['User-Agent']
+    }
 
 def fetch_eastmoney_annual_reports(company_code: str, page_size: int = 50, page_number: int = 1, save: bool = True):
     """
@@ -310,7 +332,8 @@ def get_announcement_detail(detail_url: str, cookies: dict, headers: dict) -> di
         detail_headers = headers.copy()
         detail_headers['Referer'] = detail_url
         
-        print(f"正在获取详情页: {detail_url}")
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"正在获取详情页: {detail_url}")
         resp = requests.get(detail_url, cookies=cookies, headers=detail_headers, timeout=15)
         resp.raise_for_status()
         
@@ -408,7 +431,8 @@ def get_announcement_detail(detail_url: str, cookies: dict, headers: dict) -> di
             'success': True
         }
         
-        print(f"成功获取详情页内容，标题: {title[:50]}...")
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"成功获取详情页内容，标题: {title[:50]}...")
         return result
         
     except requests.exceptions.Timeout:
@@ -462,9 +486,12 @@ def get_pdf_link_by_selenium(detail_url):
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        # 为每个 Selenium 会话创建唯一的临时 profile，避免 "user data dir in use" 报错
+        import tempfile, uuid, shutil
+        tmp_profile = tempfile.mkdtemp(prefix=f"selenium_profile_{uuid.uuid4()}_")
+        options.add_argument(f"--user-data-dir={tmp_profile}")
         
         # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
-        import os
         if os.path.exists('/.dockerenv'):
             options.binary_location = '/usr/bin/chromium'
             service = Service('/usr/bin/chromedriver')
@@ -502,13 +529,26 @@ def get_pdf_link_by_selenium(detail_url):
             
         finally:
             driver.quit()
+            # 清理临时 profile
+            shutil.rmtree(tmp_profile, ignore_errors=True)
             
     except Exception as e:
         print(f'[selenium] 获取PDF链接失败: {e}')
+        # ===== 回退：直接在详情页源码中尝试提取 PDF 直链 =====
+        try:
+            import requests, re
+            from urllib.parse import urljoin
+            resp = requests.get(detail_url, timeout=10)
+            m = re.search(r'href="([^\"]+\.pdf)"', resp.text, re.I)
+            if m:
+                pdf_link = urljoin(detail_url, m.group(1))
+                print(f"[fallback] 从页面源码提取到 PDF 链接: {pdf_link}")
+                return pdf_link
+        except Exception as e2:
+            print(f"[fallback] 源码提取 PDF 链接失败: {e2}")
         return None
 
 def download_pdf(pdf_url, save_dir):
-    import os
     import requests
     if not pdf_url or not pdf_url.lower().endswith('.pdf'):
         print('[selenium] 无效的PDF链接')
@@ -519,7 +559,8 @@ def download_pdf(pdf_url, save_dir):
     if resp.status_code == 200:
         with open(filename, 'wb') as f:
             f.write(resp.content)
-        print(f'[selenium] 已保存PDF: {filename}')
+        if os.environ.get("QUIET", "1") != "1":
+            print(f'[selenium] 已保存PDF: {filename}')
         return filename
     else:
         print('[selenium] 下载失败')
@@ -711,7 +752,6 @@ def fetch_eastmoney_industry_reports_by_company(
             options.add_experimental_option('useAutomationExtension', False)
             
             # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
-            import os
             if os.path.exists('/.dockerenv'):
                 options.binary_location = '/usr/bin/chromium'
                 service = Service('/usr/bin/chromedriver')

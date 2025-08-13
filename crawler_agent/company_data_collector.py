@@ -52,16 +52,88 @@ def get_company_code_by_llm(company_name: str) -> str:
     腾讯控股 -> 00700
     阿里巴巴 -> 09988
     """
-    print(f"[LLM PROMPT] {prompt}")
-    
     try:
         # 使用真实的LLM接口
         agent = LLMBaseAgent()
         result = agent.llm_generate(prompt)
-        if result:
-            return result.strip()
+        if result and isinstance(result, str):
+            # 提取数字代码
+            import re
+            codes = re.findall(r'\b\d{6}\b', result.strip())
+            if codes:
+                code = codes[0]
+                return code
+        
     except Exception as e:
-        print(f"[警告] LLM调用失败: {e}")
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"[警告] LLM调用失败: {e}")
+    
+    # 简单的fallback：根据公司名称尝试猜测可能的股票代码
+    # 这只是一个很基础的fallback，实际效果有限
+    fallback_codes = {
+        "贵州茅台": "600519",
+        "平安银行": "000001", 
+        "招商银行": "600036",
+        "中国银行": "601988",
+        "工商银行": "601398",
+        "建设银行": "601939",
+        "农业银行": "601288",
+        "中国平安": "601318",
+        "中国石油": "601857",
+        "中国石化": "600028",
+        "中国移动": "600941",
+        "中国联通": "600050",
+        "中国电信": "601728",
+        "腾讯": "00700",
+        "阿里巴巴": "09988",
+        "比亚迪": "002594",
+        "宁德时代": "300750",
+        "五粮液": "000858",
+        "泸州老窖": "000568",
+        "万科": "000002",
+        "美的集团": "000333",
+        "格力电器": "000651"
+    }
+    
+    # 尝试模糊匹配
+    for known_name, code in fallback_codes.items():
+        if known_name in company_name or company_name in known_name:
+            return code
+    
+    return None
+
+def get_company_code(company_name: str) -> str:
+    """先通过东方财富搜索接口获取股票代码，失败再用LLM兜底"""
+    try:
+        import requests
+        resp = requests.get(
+            "https://search.eastmoney.com/api/suggest/get",
+            params={"input": company_name, "type": "14"}, timeout=8
+        )
+        if resp.ok:
+            data = resp.json()
+            for item in data.get("QuotationCodeTable", [])[:1]:
+                # item 格式: code\tname\t拼音
+                code = item.get("code") or item.get("Code")
+                if code and code.isdigit():
+                    return code
+    except Exception as e:
+        pass
+
+    # 2) fallback to LLM
+    try:
+        code = get_company_code_by_llm(company_name)
+        if code and code.isdigit() and len(code)==6:
+            return code
+    except Exception as e:
+        pass
+
+    # 无法获取有效代码
+    return None
+
+# --- 辅助校验函数 ---
+def _is_valid_code(code: str) -> bool:
+    return bool(code) and code.isdigit() and len(code)==6
 
 class CompanyDataCollector:
     """公司数据采集器"""
@@ -189,15 +261,18 @@ class CompanyDataCollector:
         print(f"{'='*60}")
         
         # 使用LLM获取股票代码
-        print("正在获取股票代码...")
-        company_code = get_company_code_by_llm(company_name)
-        print(f"获取到股票代码: {company_code}")
+        if os.environ.get("QUIET", "1") != "1":
+            print("正在获取股票代码...")
+        company_code = get_company_code(company_name)
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"获取到股票代码: {company_code}")
         
         # 清空所有历史数据
         self.clear_historical_data()
         
         # 获取东方财富session
-        print("正在获取东方财富session...")
+        if os.environ.get("QUIET", "1") != "1":
+            print("正在获取东方财富session...")
         cookies, headers = get_fresh_eastmoney_session()
         
         results = {
@@ -240,6 +315,14 @@ class CompanyDataCollector:
         """采集公司公告"""
         results = {"sources": {}}
         
+        # 如果公司代码无效直接跳过公告采集
+        if not _is_valid_code(company_code):
+            results["sources"] = {
+                "eastmoney": {"status": "skipped", "message": "无效公司代码"},
+                "szse": {"status": "skipped", "message": "无效公司代码"}
+            }
+            return results
+
         try:
             # 东方财富公告
             print("  - 采集东方财富公告...")
@@ -285,6 +368,14 @@ class CompanyDataCollector:
         """采集财务报表"""
         results = {"sources": {}}
         
+        # 如果公司代码无效直接跳过财报采集
+        if not _is_valid_code(company_code):
+            results["sources"] = {
+                "eastmoney": {"status": "skipped", "message": "无效公司代码"},
+                "szse": {"status": "skipped", "message": "无效公司代码"}
+            }
+            return results
+
         try:
             # 东方财富财报
             print("  - 采集东方财富财报...")
@@ -342,21 +433,40 @@ class CompanyDataCollector:
         try:
             # 巨潮资讯网财报 - 使用改进的Crawl4AI代理
             print("  - 采集巨潮资讯网财报...")
-            cninfo_data = self._collect_cninfo_financial_reports(company_name, company_code)
-            if cninfo_data and len(cninfo_data) > 0:
-                results["sources"]["cninfo"] = {
-                    "status": "success",
-                    "count": len(cninfo_data),
-                    "data": cninfo_data
-                }
-                print(f"  - 巨潮资讯网财报采集成功: {len(cninfo_data)}份报告")
+            if not company_code or not str(company_code).strip().isdigit():
+                # 兜底：尝试再次通过 LLM 获取一次代码
+                try:
+                    fallback_code = get_company_code_by_llm(company_name)
+                    if fallback_code and fallback_code.strip().isdigit():
+                        company_code = fallback_code.strip()
+                        if os.environ.get("QUIET", "1") != "1":
+                            print(f"  - 通过LLM兜底获取到股票代码: {company_code}")
+                except Exception:
+                    pass
+
+            if company_code and str(company_code).strip().isdigit():
+                cninfo_data = self._collect_cninfo_financial_reports(company_name, company_code)
+                if cninfo_data and len(cninfo_data) > 0:
+                    results["sources"]["cninfo"] = {
+                        "status": "success",
+                        "count": len(cninfo_data),
+                        "data": cninfo_data
+                    }
+                    print(f"  - 巨潮资讯网财报采集成功: {len(cninfo_data)}份报告")
+                else:
+                    results["sources"]["cninfo"] = {
+                        "status": "no_data",
+                        "message": "未获取到有效数据或公司代码无效",
+                        "data": [] if not company_code else cninfo_data
+                    }
+                    print("  - 巨潮资讯网财报未获取到有效数据")
             else:
                 results["sources"]["cninfo"] = {
-                    "status": "no_data",
-                    "message": "未获取到有效数据",
-                    "data": cninfo_data
+                    "status": "skipped",
+                    "message": "跳过巨潮采集：公司代码无效",
+                    "data": []
                 }
-                print("  - 巨潮资讯网财报未获取到有效数据")
+                print("  - 跳过巨潮采集（公司代码无效）")
         except Exception as e:
             print(f"  - 巨潮资讯网财报采集失败: {e}")
             results["sources"]["cninfo"] = {"status": "failed", "error": str(e)}
@@ -409,11 +519,10 @@ class CompanyDataCollector:
             
             # 运行异步任务
             results = loop.run_until_complete(_async_collect())
-            print(f"[DEBUG] 巨潮返回: {results}")
             loop.close()
 
             # 保存每份报告到 output/financial_reports/cninfo_financial_reports/
-            import os, json, datetime
+            import json, datetime
             save_dir = os.path.join('data/raw', 'financial_reports', 'cninfo_financial_reports')
             os.makedirs(save_dir, exist_ok=True)
             now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')

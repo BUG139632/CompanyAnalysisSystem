@@ -4,6 +4,12 @@ from .base_agent import BaseAgent
 
 class LLMBaseAgent(BaseAgent):
     def __init__(self, config_path=None, agent_name=None):
+        # 如果调用方没有传入 config_path，则默认使用项目根下 config/langchain_config.yaml
+        if config_path is None:
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            default_cfg = os.path.join(project_root, "config", "langchain_config.yaml")
+            config_path = default_cfg if os.path.exists(default_cfg) else None
+
         super().__init__(config_path, agent_name or "LLMBaseAgent")
         self.llm_context = []  # 用于存储对话/推理上下文
         self.gemini_api_key = os.environ.get("GEMINI_API_KEY")
@@ -14,6 +20,13 @@ class LLMBaseAgent(BaseAgent):
         self.fallback_to_original = self.config.get('fallback_to_original', True)
         self.llm = None
         self.langchain_components = {}
+        # 新增：日志显示开关（来自配置或环境变量）
+        logging_cfg = self.config.get('logging', {}) if isinstance(self.config, dict) else {}
+        self.show_prompts = bool(logging_cfg.get('show_prompts', False))
+        self.show_responses = bool(logging_cfg.get('show_responses', False))
+        if os.environ.get("HIDE_THOUGHTS") == "1":
+            self.show_prompts = False
+            self.show_responses = False
         
         # 如果启用了 LangChain，进行初始化
         if self.langchain_enabled:
@@ -99,12 +112,16 @@ class LLMBaseAgent(BaseAgent):
         if not self.llm:
             raise ValueError("LangChain LLM 未初始化")
         
-        self.logger.info(f"[LangChain调用] prompt: {prompt}")
+        # 仅在允许时输出prompt
+        if self.show_prompts:
+            self.logger.info(f"[LangChain调用] prompt: {prompt}")
         
         try:
             # 使用基础链进行调用
             result = self.langchain_components['basic_chain'].run(prompt)
-            self.logger.info(f"[LangChain调用] 返回: {result}")
+            # 仅在允许时输出response
+            if self.show_responses:
+                self.logger.info(f"[LangChain调用] 返回: {result}")
             return result
         except Exception as e:
             self.logger.error(f"LangChain 调用失败: {e}")
@@ -112,7 +129,7 @@ class LLMBaseAgent(BaseAgent):
 
     def llm_generate_original(self, prompt, **kwargs):
         """
-        原有的 Gemini API 调用方式
+        原有的 Gemini API 调用方式，带重试机制
         """
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY 未配置，无法调用Gemini API")
@@ -123,19 +140,70 @@ class LLMBaseAgent(BaseAgent):
             "contents": [{"parts": [{"text": prompt}]}]
         }
         
-        self.logger.info(f"[原始LLM调用] prompt: {prompt}")
-        self.logger.debug(f"[原始LLM调用] 请求体: {data}")
+        # 仅在允许时输出prompt/请求体
+        if self.show_prompts:
+            self.logger.info(f"[原始LLM调用] prompt: {prompt}")
+            self.logger.debug(f"[原始LLM调用] 请求体: {data}")
         
-        try:
-            resp = requests.post(url, headers=headers, json=data, timeout=30)
-            resp.raise_for_status()
-            result = resp.json()
-            self.logger.info(f"[原始LLM调用] Gemini返回: {result}")
-            # 解析Gemini返回的文本内容
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            self.logger.error(f"Gemini API调用失败: {e}")
-            return None
+        # 重试配置
+        max_retries = 3
+        base_delay = 2  # 基础延迟秒数
+        
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(url, headers=headers, json=data, timeout=30)
+                resp.raise_for_status()
+                result = resp.json()
+                # 仅在允许时输出response
+                if self.show_responses:
+                    self.logger.info(f"[原始LLM调用] Gemini返回: {result}")
+                # 解析Gemini返回的文本内容
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+                
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code if e.response else None
+                
+                # 对于临时错误进行重试
+                if status_code in [503, 502, 504, 429] and attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)  # 指数退避
+                    self.logger.warning(f"API调用失败 (状态码: {status_code})，{delay}秒后重试... (第{attempt+1}/{max_retries+1}次)")
+                    import time
+                    time.sleep(delay)
+                    continue
+                else:
+                    # 永久错误或重试次数耗尽
+                    if status_code == 503:
+                        error_msg = "Gemini API服务暂时不可用，请稍后重试"
+                    elif status_code == 429:
+                        error_msg = "API调用频率过高，请降低请求频率"
+                    elif status_code == 401:
+                        error_msg = "API密钥无效或已过期"
+                    elif status_code == 403:
+                        error_msg = "API访问被拒绝，请检查权限"
+                    else:
+                        error_msg = f"API调用失败: HTTP {status_code}"
+                    
+                    self.logger.error(f"Gemini API调用失败: {error_msg} ({e})")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                # 网络错误等
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    self.logger.warning(f"网络错误，{delay}秒后重试... (第{attempt+1}/{max_retries+1}次): {e}")
+                    import time
+                    time.sleep(delay)
+                    continue
+                else:
+                    self.logger.error(f"网络连接失败: {e}")
+                    return None
+                    
+            except Exception as e:
+                # 其他错误（如JSON解析错误等）
+                self.logger.error(f"Gemini API调用失败: {e}")
+                return None
+        
+        return None
 
     def create_chain(self, prompt_template, input_variables=None, memory_key=None):
         """

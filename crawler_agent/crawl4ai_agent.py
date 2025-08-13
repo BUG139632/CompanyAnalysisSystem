@@ -28,7 +28,7 @@ class Crawl4AIAgent(BaseAgent):
         # 初始化Crawl4AI爬虫
         crawler_config = self.config.get('crawler', {})
         self.crawler = AsyncWebCrawler(
-            verbose=crawler_config.get('verbose', True),
+            verbose=crawler_config.get('verbose', False),
             headless=crawler_config.get('headless', True),
             browser_type=crawler_config.get('browser_type', 'chromium')
         )
@@ -50,7 +50,6 @@ class Crawl4AIAgent(BaseAgent):
         """
         # 如果没有指定配置文件，使用默认配置文件
         if not hasattr(self, 'config_path') or not self.config_path:
-            import os
             current_dir = os.path.dirname(os.path.abspath(__file__))
             self.config_path = os.path.join(current_dir, 'crawl4ai_config.yaml')
         

@@ -64,6 +64,10 @@ def main():
     split_docs = split_documents(docs)
     print(f"切分后文档数: {len(split_docs)}")
 
+    if len(split_docs) == 0:
+        print("⚠️  没有可用文本块，跳过向量数据库构建。")
+        return
+
     print("构建向量数据库...")
     vectorstore = build_vector_db(split_docs)
 

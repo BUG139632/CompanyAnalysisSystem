@@ -6,8 +6,8 @@ import sys
 from tool.json_exporter import export_business_json
 
 from common.llm_base_agent import LLMBaseAgent
-from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # 维度到分析报告文件的映射
 DIMENSION_TO_FILE = {

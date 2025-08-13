@@ -38,8 +38,15 @@ class MissingDataHandler:
         # 处理各种缺失值情况
         if value is None:
             return default
-        if isinstance(value, str) and value.strip() == '':
-            return default
+        if isinstance(value, str):
+            # 去除千分位逗号等格式，并尝试转换为数字
+            value_clean = value.replace(',', '').strip()
+            if value_clean == '':
+                return default
+            try:
+                value = float(value_clean)
+            except ValueError:
+                return default
         if isinstance(value, (int, float)) and math.isnan(value):
             return default
         if isinstance(value, (int, float)) and math.isinf(value):

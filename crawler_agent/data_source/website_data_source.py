@@ -9,6 +9,12 @@ import re
 import os
 import time
 from urllib.parse import urljoin
+import logging
+
+# 压低 webdriver_manager 和 selenium 的日志级别，避免控制台噪声
+logging.getLogger("WDM").setLevel(logging.ERROR)
+logging.getLogger("webdriver_manager").setLevel(logging.ERROR)
+logging.getLogger("selenium").setLevel(logging.WARNING)
 
 # 可选：如需LLM辅助，可引入自定义llm_func
 # from common.llm_base_agent import LLMBaseAgent
@@ -24,40 +30,122 @@ def search_company_website(company_name: str, llm_func=None) -> Optional[str]:
     :return: 官网URL或None
     """
     try:
-        from playwright.sync_api import sync_playwright
-        import time
-        
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from webdriver_manager.chrome import ChromeDriverManager
+
         # 构造搜索关键词
         query = f"{company_name} 官网"
         url = f"https://www.google.com/search?q={query}"
-        print(f"[官网采集] Google搜索: {url}")
-        
-        with sync_playwright() as p:
-            # 启动浏览器
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            
-            # 设置用户代理
-            page.set_extra_http_headers({"User-Agent": USER_AGENT})
-            
-            # 访问搜索页面
-            page.goto(url)
-            page.wait_for_load_state('networkidle')
-            
-            # 提取第一个自然结果
-            results = page.query_selector_all('div.yuRUbf > a')
-            if results:
-                link = results[0].get_attribute('href')
-                print(f"[官网采集] 搜索到官网: {link}")
-                browser.close()
-                return link
-            
-            print("[官网采集] 未找到官网")
-            browser.close()
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"[官网采集] Google搜索: {url}")
+
+        options = Options()
+        options.add_argument('--headless')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        # 设定中英文以提升选择器稳定性
+        options.add_argument('--lang=zh-CN,zh')
+
+        # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+        if os.path.exists('/.dockerenv'):
+            options.binary_location = '/usr/bin/chromium'
+            service = Service('/usr/bin/chromedriver')
+        else:
+            service = Service(ChromeDriverManager().install())
+
+        driver = webdriver.Chrome(service=service, options=options)
+        try:
+            driver.get(url)
+
+            # 处理可能出现的同意/隐私弹窗
+            try:
+                WebDriverWait(driver, 5).until(
+                    EC.any_of(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[aria-label*="同意" i]')),
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[aria-label*="接受" i]')),
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, '#L2AGLb')),
+                        EC.element_to_be_clickable((By.XPATH, "//button[contains(., '同意') or contains(., '接受') or contains(., 'I agree') or contains(., 'Accept all')]") )
+                    )
+                )
+                for sel in [
+                    (By.CSS_SELECTOR, 'button[aria-label*="同意" i]'),
+                    (By.CSS_SELECTOR, 'button[aria-label*="接受" i]'),
+                    (By.CSS_SELECTOR, '#L2AGLb'),
+                    (By.XPATH, "//button[contains(., '同意') or contains(., '接受') or contains(., 'I agree') or contains(., 'Accept all')]")
+                ]:
+                    elems = driver.find_elements(*sel)
+                    if elems:
+                        try:
+                            elems[0].click()
+                            break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            # 等待搜索结果加载
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'h3'))
+            )
+
+            # 多种选择器回退，尽量拿第一个结果
+            # 1) 旧结构
+            for sel in ['div.yuRUbf > a']:
+                try:
+                    elem = driver.find_element(By.CSS_SELECTOR, sel)
+                    href = elem.get_attribute('href')
+                    if href:
+                        if os.environ.get("QUIET", "1") != "1":
+                            print(f"[官网采集] 搜索到官网: {href}")
+                        return href
+                except Exception:
+                    pass
+
+            # 2) 新结构：先找标题，再回溯到最近的 a 标签
+            h3_elems = driver.find_elements(By.CSS_SELECTOR, 'a h3, h3')
+            for h3 in h3_elems:
+                try:
+                    a = h3.find_element(By.XPATH, './ancestor::a[1]')
+                    href = a.get_attribute('href')
+                    if not href:
+                        continue
+                    # 过滤 Google 自身链接
+                    if href.startswith('https://www.google.') or href.startswith('/url?'):
+                        continue
+                    if os.environ.get("QUIET", "1") != "1":
+                        print(f"[官网采集] 搜索到官网: {href}")
+                    return href
+                except Exception:
+                    continue
+
+            # 3) 兜底：取搜索区块内的第一个外链
+            candidates = driver.find_elements(By.CSS_SELECTOR, 'div#search a[href]')
+            for a in candidates:
+                href = a.get_attribute('href')
+                if not href:
+                    continue
+                if href.startswith('https://www.google.') or '/search?' in href:
+                    continue
+                if os.environ.get("QUIET", "1") != "1":
+                    print(f"[官网采集] 搜索到官网(兜底): {href}")
+                return href
+
+            if os.environ.get("QUIET", "1") != "1":
+                print("[官网采集] 未找到官网")
             return None
-            
+        finally:
+            driver.quit()
     except Exception as e:
-        print(f"[官网采集] Playwright功能失败: {e}")
+        print(f"[官网采集] Selenium功能失败: {e}")
         return None
 
 

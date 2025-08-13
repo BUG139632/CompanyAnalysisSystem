@@ -144,23 +144,38 @@ class LineChartVisualizer:
 def plot_multi_line_chart(x, y_dict, title="", xlabel="", ylabel="", save_path=None, show=True):
     """
     绘制多指标组合折线图（每个指标一条线）。
-    参数：
-        x: 横坐标（如年份）
-        y_dict: {指标名: y值列表}
-        title, xlabel, ylabel: 标题和标签
-        save_path: 保存路径
-        show: 是否展示
+    1. 自动将 None 值替换为 np.nan 以避免绘图错误
+    2. 如果所有值均为 nan 或空，则跳过该指标
+    3. 在保存图片前自动创建目录
     """
     import matplotlib.pyplot as plt
+    import numpy as np
+
     plt.figure(figsize=(10, 6))
+    has_valid_line = False
     for metric, y in y_dict.items():
-        plt.plot(x, y, marker="o", label=metric.upper())
+        # 将 None 转为 np.nan，保持列表长度一致
+        y_processed = [np.nan if v is None else v for v in y]
+        # 如果全部为 nan，跳过该指标
+        if all(v is np.nan or (isinstance(v, float) and np.isnan(v)) for v in y_processed):
+            continue
+        plt.plot(x, y_processed, marker="o", label=metric.upper())
+        has_valid_line = True
+
+    if not has_valid_line:
+        raise ValueError("所有指标值均为空，无法绘制图表")
+
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.xticks(rotation=45)
     plt.legend()
+
     if save_path:
+        # 自动创建保存目录
+        save_dir = os.path.dirname(save_path)
+        if save_dir and not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
         plt.savefig(save_path, bbox_inches='tight')
         print(f"[图片已保存到]: {save_path}")
     if show:

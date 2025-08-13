@@ -31,7 +31,7 @@ async def analyze_webpage_structure():
     ]
     
     # 初始化爬虫
-    crawler = AsyncWebCrawler(verbose=True, headless=True)
+    crawler = AsyncWebCrawler(verbose=False, headless=True)
     
     try:
         for i, test_info in enumerate(test_urls, 1):

@@ -27,6 +27,26 @@ class DataPreprocessor:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _to_float(value) -> Optional[float]:
+        """将可能为字符串的数值安全转换为 float，无法转换返回 None"""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:
+                return None
+        if isinstance(value, str):
+            clean = value.replace(',', '').strip()
+            if clean == '':
+                return None
+            try:
+                return float(clean)
+            except Exception:
+                return None
+        return None
     
     def prepare_financial_summary(self, financial_data: List[Dict[str, Any]], 
                                  required_metrics: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -103,9 +123,10 @@ class DataPreprocessor:
                 
                 # 只计算需要的指标
                 for metric_name, metric_key in metrics_to_calculate.items():
-                    value = data.get(metric_key)
-                    if value is not None:
-                        metrics[metric_name] = value
+                    raw = data.get(metric_key)
+                    num = self._to_float(raw)
+                    if num is not None:
+                        metrics[metric_name] = num
                 
                 if metrics:
                     yearly_metrics[year] = metrics
@@ -219,16 +240,18 @@ class DataPreprocessor:
             values = []
             for year in years:
                 if metric in yearly_metrics[year]:
-                    values.append({
-                        "year": year,
-                        "value": yearly_metrics[year][metric]
-                    })
+                    num = self._to_float(yearly_metrics[year][metric])
+                    if num is not None:
+                        values.append({
+                            "year": year,
+                            "value": num
+                        })
             
             if len(values) >= 2:
                 first_value = values[0]["value"]
                 last_value = values[-1]["value"]
                 
-                if first_value != 0:
+                if first_value not in (None, 0):
                     change_rate = (last_value - first_value) / first_value * 100
                     trends[metric] = {
                         "start_value": first_value,

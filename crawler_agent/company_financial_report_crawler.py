@@ -111,7 +111,7 @@ class CompanyFinancialReportCrawler:
             # 初始化Crawl4AI爬虫
             llm_config = self.config.get('llm', {})
             self.crawler = AsyncWebCrawler(
-                verbose=True,
+                verbose=False,
                 headless=True,
                 browser_type="chromium"
             )
@@ -126,7 +126,6 @@ class CompanyFinancialReportCrawler:
                 system_prompt=llm_config.get('system_prompt', ''),
                 timeout=llm_config.get('timeout', 30)
             )
-            logger.info(f"[DEBUG] LLM provider: {llm_config.get('provider')}, model: {llm_config.get('model')}, api_key: {llm_config.get('api_key')}")
 
             logger.info("Company website crawler initialized successfully")
 
@@ -573,7 +572,9 @@ class CompanyFinancialReportCrawler:
         for i, link in enumerate(potential_links):
             prompt += f"\n[{i+1}] 文本: {link.get('text', '')} | 标题: {link.get('title', '')} | URL: {link.get('url', '')}"
         prompt += "\n\n请只输出最有可能的栏目URL（只输出一行URL，不要输出任何其他内容）。"
-        logger.info(f"[LLM财报栏目判断] prompt: {prompt}")
+        # 仅在未隐藏思考时输出prompt日志
+        if os.environ.get("HIDE_THOUGHTS") != "1":
+            logger.info(f"[LLM财报栏目判断] prompt: {prompt}")
         url = await self._call_llm(prompt)
         url = url.strip().split('\n')[0]
         # 简单校验
@@ -659,7 +660,6 @@ class CompanyFinancialReportCrawler:
         try:
             # 添加项目根目录到Python路径
             import sys
-            import os
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(current_dir)
             if project_root not in sys.path:

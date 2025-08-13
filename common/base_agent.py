@@ -27,14 +27,17 @@ class BaseAgent:
 
     def init_logger(self):
         logger = logging.getLogger(self.agent_name)
-        logger.setLevel(logging.INFO)
+        # 根据环境变量控制日志级别（默认静默）
+        quiet = os.environ.get("QUIET", "1") == "1" or os.environ.get("HIDE_THOUGHTS", "0") == "1"
+        logger.setLevel(logging.WARNING if quiet else logging.INFO)
         formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(name)s] %(message)s')
         if not logger.handlers:
-            ch = logging.StreamHandler()
-            ch.setFormatter(formatter)
-            logger.addHandler(ch)
+            # 控制台输出在安静模式下不添加
+            if not quiet:
+                ch = logging.StreamHandler()
+                ch.setFormatter(formatter)
+                logger.addHandler(ch)
             # 覆盖写入日志文件，每次运行清空
-            import os
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             log_dir = os.path.join(project_root, 'logs')
             os.makedirs(log_dir, exist_ok=True)

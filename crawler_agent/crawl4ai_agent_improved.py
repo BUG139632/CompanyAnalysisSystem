@@ -25,7 +25,13 @@ from datetime import datetime
 from crawler_agent.company_financial_report_crawler import CompanyFinancialReportCrawler
 
 # 设置日志
-logging.basicConfig(level=logging.INFO)
+quiet_mode = os.environ.get("QUIET", "1") == "1" or os.environ.get("HIDE_THOUGHTS", "0") == "1"
+logging.basicConfig(level=logging.WARNING if quiet_mode else logging.INFO)
+# 静默第三方冗余日志（在 quiet 模式下尤其显著）
+if quiet_mode:
+	logging.getLogger("WDM").setLevel(logging.ERROR)
+	logging.getLogger("webdriver_manager").setLevel(logging.ERROR)
+	logging.getLogger("selenium").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 def error_handler(func):
@@ -622,7 +628,7 @@ class ImprovedCrawl4AIAgent:
         crawler_config = self.config_manager.get_crawler_config()
         
         self.crawler = AsyncWebCrawler(
-            verbose=crawler_config.get('verbose', True),
+            verbose=crawler_config.get('verbose', False),
             headless=crawler_config.get('headless', True),
             browser_type=crawler_config.get('browser_type', 'chromium'),
             timeout=crawler_config.get('timeout', 30)
@@ -1054,6 +1060,12 @@ class ImprovedCrawl4AIAgent:
         :param max_reports: 最大报告数量
         :return: 财务报表列表
         """
+        # 先校验 company_code，避免传入 None 或非法值
+        if not company_code or not str(company_code).strip().isdigit():
+            logger.warning(f"跳过巨潮采集：无效的公司代码 '{company_code}' for {company_name}")
+            return []
+        company_code = str(company_code).strip()
+        
         logger.info(f"开始爬取 {company_name}({company_code}) 的巨潮资讯网财务报表")
         
         try:

@@ -68,9 +68,10 @@ class DialogManager:
                         try:
                             from business_agent.business_agent import BusinessAgent
                             from common.llm_base_agent import LLMBaseAgent
-                            from langchain.vectorstores import FAISS
-                            from langchain.embeddings import HuggingFaceEmbeddings
-                            llm_agent = LLMBaseAgent(config_path="../config/langchain_config.yaml")
+                            from langchain_community.vectorstores import FAISS
+                            from langchain_community.embeddings import HuggingFaceEmbeddings
+                            cfg_path = os.path.join(os.path.dirname(__file__), "../config/langchain_config.yaml")
+                            llm_agent = LLMBaseAgent(config_path=os.path.abspath(cfg_path))
                             embedding_model = HuggingFaceEmbeddings(model_name="BAAI/bge-base-zh-v1.5")
                             vectorstore = FAISS.load_local("faiss_industry_reports", embedding_model, allow_dangerous_deserialization=True)
                             business_agent = BusinessAgent(llm_agent, vectorstore)
