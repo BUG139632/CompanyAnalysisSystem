@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
-      OWNER_LOWER: ${{ toLower(github.repository_owner) }}
+      OWNER: ${{ github.repository_owner }}
     
     permissions:
       contents: read
@@ -140,6 +140,9 @@ jobs:
         
     - name: 生成部署摘要
       run: |
+        # 计算小写的owner名称
+        OWNER_LOWER=$(echo "${{ env.OWNER }}" | tr '[:upper:]' '[:lower:]')
+        
         echo "## 🚀 部署摘要" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**镜像信息:**" >> $GITHUB_STEP_SUMMARY
@@ -147,8 +150,8 @@ jobs:
         echo "- 分支: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
         echo "- 提交: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "- 构建号: \`${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- 测试镜像: \`${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- 部署镜像: \`${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 测试镜像: \`${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:test-${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- 部署镜像: \`${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**部署流程:**" >> $GITHUB_STEP_SUMMARY
         echo "1. ✅ 构建测试镜像并通过所有测试" >> $GITHUB_STEP_SUMMARY
@@ -158,14 +161,14 @@ jobs:
         echo "**使用方式:**" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
         echo "# 拉取最新镜像" >> $GITHUB_STEP_SUMMARY
-        echo "docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+        echo "docker pull ${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "# 运行容器" >> $GITHUB_STEP_SUMMARY
         echo "docker run -it --name investment-analysis-container \\" >> $GITHUB_STEP_SUMMARY
         echo "  -v \$(pwd)/output:/app/output \\" >> $GITHUB_STEP_SUMMARY
         echo "  -v \$(pwd)/data:/app/data \\" >> $GITHUB_STEP_SUMMARY
         echo "  -e GEMINI_API_KEY=your_api_key \\" >> $GITHUB_STEP_SUMMARY
-        echo "  ${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+        echo "  ${{ env.REGISTRY }}/${OWNER_LOWER}/${{ env.DOCKER_IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
   release:
@@ -189,6 +192,12 @@ jobs:
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "🏷️ 生成发布标签: $TAG"
         
+    - name: 计算小写Owner名称
+      id: owner
+      run: |
+        OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        echo "owner_lower=${OWNER_LOWER}" >> $GITHUB_OUTPUT
+        
     - name: 创建 GitHub Release
       uses: actions/create-release@v1
       env:
@@ -206,7 +215,7 @@ jobs:
           
           **Docker 镜像:**
           ```bash
-          docker pull ${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+          docker pull ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lower }}/${{ env.DOCKER_IMAGE_NAME }}:latest
           ```
           
           **快速启动:**
@@ -219,7 +228,7 @@ jobs:
             -v $(pwd)/output:/app/output \
             -v $(pwd)/data:/app/data \
             -e GEMINI_API_KEY=$GEMINI_API_KEY \
-            ${{ env.REGISTRY }}/${{ env.OWNER_LOWER }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner_lower }}/${{ env.DOCKER_IMAGE_NAME }}:latest
           ```
           
           ## 📋 更新内容
