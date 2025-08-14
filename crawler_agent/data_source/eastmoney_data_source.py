@@ -493,8 +493,19 @@ def get_pdf_link_by_selenium(detail_url):
         
         # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
         if os.path.exists('/.dockerenv'):
-            options.binary_location = '/usr/bin/chromium'
-            service = Service('/usr/bin/chromedriver')
+            # Debian bookworm: chromium binary /usr/bin/chromium, driver /usr/lib/chromium/chromedriver
+            candidates = [
+                ('/usr/bin/chromium', '/usr/lib/chromium/chromedriver'),
+                ('/usr/bin/chromium-browser', '/usr/lib/chromium-browser/chromedriver'),
+            ]
+            for bin_path, drv_path in candidates:
+                if os.path.exists(bin_path) and os.path.exists(drv_path):
+                    options.binary_location = bin_path
+                    service = Service(drv_path)
+                    break
+            else:
+                # fallback to default lookup if not found
+                service = Service(ChromeDriverManager().install())
         else:
             service = Service(ChromeDriverManager().install())
         
@@ -753,8 +764,19 @@ def fetch_eastmoney_industry_reports_by_company(
             
             # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
             if os.path.exists('/.dockerenv'):
-                options.binary_location = '/usr/bin/chromium'
-                service = Service('/usr/bin/chromedriver')
+                # Debian bookworm: chromium binary /usr/bin/chromium, driver /usr/lib/chromium/chromedriver
+                candidates = [
+                    ('/usr/bin/chromium', '/usr/lib/chromium/chromedriver'),
+                    ('/usr/bin/chromium-browser', '/usr/lib/chromium-browser/chromedriver'),
+                ]
+                for bin_path, drv_path in candidates:
+                    if os.path.exists(bin_path) and os.path.exists(drv_path):
+                        options.binary_location = bin_path
+                        service = Service(drv_path)
+                        break
+                else:
+                    # fallback to default lookup if not found
+                    service = Service(ChromeDriverManager().install())
             else:
                 service = Service(ChromeDriverManager().install())
             
