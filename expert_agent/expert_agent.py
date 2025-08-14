@@ -18,8 +18,21 @@ from keybert import KeyBERT
 kw_model = KeyBERT(model='shibing624/text2vec-base-chinese')
 
 def extract_keywords(text, top_n=5):
-    keywords = kw_model.extract_keywords(text, top_n=top_n)
-    return [kw[0] for kw in keywords]
+    """安全提取关键词，输入可能为 None / 数字 / 空串"""
+    if not text:
+        return []
+    # 保证为字符串
+    if not isinstance(text, str):
+        text = str(text)
+    try:
+        keywords = kw_model.extract_keywords(text, top_n=top_n)
+        return [kw[0] for kw in keywords if kw and isinstance(kw[0], str)]
+    except Exception as e:
+        # 关键字提取失败时回退：按空格/标点简单切词
+        import re
+        tokens = re.split(r"[\s，。；;,.!?！？]+", text)
+        tokens = [t for t in tokens if t]
+        return tokens[:top_n]
 
 class ExpertAgent:
     def __init__(self, config_path=None, vector_db_dir=None, embedding_model="BAAI/bge-base-zh-v1.5"):

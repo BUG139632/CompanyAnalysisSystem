@@ -1,5 +1,18 @@
 import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']  # Mac下常用
+from matplotlib import font_manager as fm
+
+# ---- 中文字体自动检测 ----
+preferred_fonts = ["Noto Sans CJK SC", "Noto Sans CJK", "WenQuanYi Zen Hei", "Arial Unicode MS"]
+available_fonts = {f.name for f in fm.fontManager.ttflist}
+for font in preferred_fonts:
+    if font in available_fonts:
+        plt.rcParams["font.sans-serif"] = [font]
+        break
+else:
+    # 若没有可用中文字体，只给一次性警告
+    import warnings
+    warnings.warn("⚠️ 未检测到中文字体，中文字符可能无法显示")
+
 plt.rcParams['axes.unicode_minus'] = False
 import seaborn as sns
 import numpy as np
