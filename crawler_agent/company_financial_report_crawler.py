@@ -44,10 +44,15 @@ FINANCIAL_KEYWORDS, FINANCIAL_PATH_PATTERNS = load_financial_keywords()
 # 设置日志
 def setup_logging():
     """设置日志配置"""
-    # 创建logs目录
-    log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+    # 日志目录：可由环境变量 LOG_DIR 指定，默认为 /app/logs（容器挂载点）
+    log_dir = os.getenv('LOG_DIR', '/app/logs')
     if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except PermissionError:
+            # 回退到 /tmp，保证容器只读层也能写日志
+            log_dir = '/tmp/company_crawler_logs'
+            os.makedirs(log_dir, exist_ok=True)
     
     # 清空日志文件
     log_file = os.path.join(log_dir, "company_website_crawler.log")
