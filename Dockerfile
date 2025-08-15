@@ -23,8 +23,8 @@ WORKDIR /app
 # 复制项目文件
 COPY . .
 
-# 预创建日志目录并开放写权限（容器运行时无需特权）
-RUN mkdir -p /app/logs && chmod 777 /app/logs
+# 创建必要目录并开放写权限
+RUN mkdir -p /app/output /app/data /app/logs && chmod 777 /app/output /app/data /app/logs
 
 # 创建并激活虚拟环境
 RUN python3 -m venv /opt/venv

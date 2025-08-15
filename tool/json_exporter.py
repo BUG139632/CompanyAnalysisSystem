@@ -5,12 +5,21 @@ import markdown2
 import re
 
 # 新增：为三类导出分别指定子目录
-ANALYSIS_EXPORT_DIR = os.path.join(os.path.dirname(__file__), '../output/analysis_exports')
-EXPERT_EXPORT_DIR = os.path.join(os.path.dirname(__file__), '../output/expert_exports')
-BUSINESS_EXPORT_DIR = os.path.join(os.path.dirname(__file__), '../output/business_exports')
-os.makedirs(ANALYSIS_EXPORT_DIR, exist_ok=True)
-os.makedirs(EXPERT_EXPORT_DIR, exist_ok=True)
-os.makedirs(BUSINESS_EXPORT_DIR, exist_ok=True)
+BASE_OUTPUT_DIR = os.getenv('OUTPUT_DIR', '/app/output')
+
+def _safe_mkdir(path):
+    try:
+        os.makedirs(path, exist_ok=True)
+    except PermissionError:
+        # 回退到 /tmp
+        fallback = path.replace(BASE_OUTPUT_DIR, '/tmp')
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
+    return path
+
+ANALYSIS_EXPORT_DIR = _safe_mkdir(os.path.join(BASE_OUTPUT_DIR, 'analysis_exports'))
+EXPERT_EXPORT_DIR   = _safe_mkdir(os.path.join(BASE_OUTPUT_DIR, 'expert_exports'))
+BUSINESS_EXPORT_DIR = _safe_mkdir(os.path.join(BASE_OUTPUT_DIR, 'business_exports'))
 
 # 通用txt导出
 def export_to_txt(content, filename_prefix, output_dir):
