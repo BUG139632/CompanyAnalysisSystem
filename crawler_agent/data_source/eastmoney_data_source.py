@@ -490,11 +490,12 @@ def get_pdf_link_by_selenium(detail_url):
         import tempfile, uuid, shutil
         tmp_profile = tempfile.mkdtemp(prefix=f"selenium_profile_{uuid.uuid4()}_")
         options.add_argument(f"--user-data-dir={tmp_profile}")
+        options.add_argument('--window-size=1920,1080')
         
         # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
         if os.path.exists('/.dockerenv'):
-            # Debian bookworm: chromium binary /usr/bin/chromium, driver /usr/lib/chromium/chromedriver
             candidates = [
+                ('/usr/bin/google-chrome', '/usr/local/bin/chromedriver'),
                 ('/usr/bin/chromium', '/usr/lib/chromium/chromedriver'),
                 ('/usr/bin/chromium-browser', '/usr/lib/chromium-browser/chromedriver'),
             ]
