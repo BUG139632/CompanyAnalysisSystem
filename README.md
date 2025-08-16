@@ -331,14 +331,38 @@ pip install -r requirements_pdf.txt
 export GEMINI_API_KEY="your_gemini_api_key"
 ```
 
-### 运行完整流程
+### 使用远程 Docker 镜像
+
+无需本地安装 Python 依赖，可直接使用已构建好的镜像运行完整流程。
+
+1. 拉取镜像
 
 ```bash
-# 设置Python路径
-export PYTHONPATH=.
+docker pull ghcr.io/bug139632/investment-analysis:latest
+```
 
-# 运行主程序（包含采集和清洗）
-python main.py
+2. 运行镜像（带挂载目录与 API Key）
+
+```bash
+docker run --platform linux/amd64 -it --name investment-analysis-container \
+  --user root \
+  -e GEMINI_API_KEY=$GEMINI_API_KEY \
+  -v $(pwd)/output:/app/output \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  ghcr.io/bug139632/investment-analysis:latest
+```
+
+> **说明**
+> - `--platform linux/amd64`：在 Apple Silicon 等 ARM 主机上强制使用 AMD64 镜像。
+> - `--user root`：保证容器内有写权限；如需更安全的运行用户，可在镜像中预创建非 root 用户后替换。
+> - `-e GEMINI_API_KEY`：将本地环境变量传入容器。
+> - `-v` 参数将宿主机的 `output/ data/ logs/` 目录映射到容器，方便查看结果与日志。
+
+拉起容器后会自动执行 `python main.py`，完成数据采集、清洗与分析全流程。如需进入交互式 shell，可在最后添加 `bash` 命令：
+
+```bash
+docker exec -it investment-analysis-container bash
 ```
 
 ### 单独运行模块

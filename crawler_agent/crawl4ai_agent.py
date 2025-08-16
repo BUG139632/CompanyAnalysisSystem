@@ -28,9 +28,9 @@ class Crawl4AIAgent(BaseAgent):
         # 初始化Crawl4AI爬虫
         crawler_config = self.config.get('crawler', {})
         self.crawler = AsyncWebCrawler(
-            verbose=crawler_config.get('verbose', False),
-            headless=crawler_config.get('headless', True),
-            browser_type=crawler_config.get('browser_type', 'chromium')
+            verbose=False,
+            headless=True,
+            browser_type=crawler_config.get('browser_type', 'chrome')
         )
         
         # 从配置加载URL模板

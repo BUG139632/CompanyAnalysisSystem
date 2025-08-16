@@ -85,7 +85,8 @@ class LangchainPDFStructuredExtractor:
             for file in files:
                 if file.endswith('.pdf'):
                     pdf_files.append(os.path.join(root, file))
-        results = []
+        
+        results = []  # 每次都重新解析
         for pdf_path in pdf_files:
             print(f"处理: {pdf_path}")
             try:
@@ -94,6 +95,8 @@ class LangchainPDFStructuredExtractor:
                 results.append(info)
             except Exception as e:
                 results.append({"file_path": pdf_path, "error": str(e)})
+        
+        # 保存合并后的结果
         if output_json:
             with open(output_json, 'w', encoding='utf-8') as f:
                 json.dump(results, f, ensure_ascii=False, indent=2)

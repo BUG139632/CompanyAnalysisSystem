@@ -120,12 +120,22 @@ class BusinessAgent:
                     industry_context=industry_context
                 )
                 analysis = self.llm_base_agent.llm_generate(prompt)
+            
+            print("\n================ Business 策略分析 ================")
+            print(f"策略 {i+1}: {strategy}\n")
+            print(analysis)
+            print("====================================================\n")
+
             results.append({"strategy": strategy, "analysis": analysis})
         # 新增：策略对比分析
         all_analyses = "\n\n".join([r["analysis"] for r in results])
         compare_result = self.llm_base_agent.llm_generate(
             COMPARE_PROMPT.format(all_analyses=all_analyses)
         )
+        
+        print("\n================ Business 策略对比分析 ================")
+        print(compare_result)
+        print("=======================================================\n")
         # 保存文件时一并写入对比分析
         save_dir = "data/biz_analysis"
         os.makedirs(save_dir, exist_ok=True)

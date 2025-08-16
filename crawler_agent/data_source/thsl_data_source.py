@@ -37,7 +37,10 @@ def fetch_thsl_financial_reports(company_code: str, save: bool = True):
         save_path = os.path.join(save_dir, f"{company_code}_thsl_financial_reports_{now}.json")
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(data.get('parsed_report', []), f, ensure_ascii=False, indent=2)
-        print(f"同花顺结构化财报数据已保存到: {save_path}")
+        
+        # 检查实际保存的文件数量
+        actual_files = len([f for f in os.listdir(save_dir) if f.endswith('.json')])
+        print(f"同花顺结构化财报数据已保存到: {save_path}，目录共有 {actual_files} 个文件")
     return data
 
 def parse_thsl_report(flash_data):

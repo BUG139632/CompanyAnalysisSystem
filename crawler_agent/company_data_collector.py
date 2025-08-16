@@ -207,16 +207,16 @@ class CompanyDataCollector:
         
         # 清空汇总文件
         if company_code:
-            # 删除指定公司的汇总文件
+            # 删除特定公司的汇总文件
             for filename in os.listdir(self.output_dir):
                 if filename.startswith(company_code) and filename.endswith('.json'):
                     file_path = os.path.join(self.output_dir, filename)
                     try:
                         os.remove(file_path)
                         total_cleared += 1
-                        print(f"   - 删除汇总文件: {file_path}")
+                        print(f"   - 删除公司文件: {file_path}")
                     except Exception as e:
-                        print(f"   - 删除汇总文件失败: {file_path}, 错误: {e}")
+                        print(f"   - 删除公司文件失败: {file_path}, 错误: {e}")
         else:
             # 删除所有汇总文件
             for filename in os.listdir(self.output_dir):
@@ -229,7 +229,19 @@ class CompanyDataCollector:
                     except Exception as e:
                         print(f"   - 删除汇总文件失败: {file_path}, 错误: {e}")
         
-        print(f"✅ 历史数据清空完成，共删除 {total_cleared} 个文件")
+        # 重新统计实际删除的文件数量
+        final_count = 0
+        if os.path.exists(self.output_dir):
+            if company_code:
+                # 统计剩余的特定公司文件数量
+                remaining_files = [f for f in os.listdir(self.output_dir) if f.startswith(company_code) and f.endswith('.json')]
+                final_count = total_cleared  # 直接使用删除计数
+            else:
+                # 统计剩余的汇总文件数量
+                remaining_files = [f for f in os.listdir(self.output_dir) if f.endswith('_公司数据汇总_') and f.endswith('.json')]
+                final_count = total_cleared  # 直接使用删除计数
+        
+        print(f"✅ 历史数据清空完成，共删除 {final_count} 个文件")
     
     def collect_company_data(self, company_name: str):
         """
@@ -298,14 +310,14 @@ class CompanyDataCollector:
         results["data"]["industry_reports"] = industry_results
 
         # 【公司官网采集示例 - 启用LLM辅助关键词生成】
-        print(f"\n🌐 尝试采集公司官网财报/公告...")
-        website_url = search_company_website(company_name, llm_func=gemini_llm_func)
-        if website_url:
-            investor_page = find_investor_page(website_url)
-            if investor_page:
-                links = extract_report_links(investor_page)
-                for link in links:
-                    download_file(link, save_dir="data/raw/announcements/website_announcements")
+        # print(f"\n🌐 尝试采集公司官网财报/公告...")
+        # website_url = search_company_website(company_name, llm_func=gemini_llm_func)
+        # if website_url:
+        #     investor_page = find_investor_page(website_url)
+        #     if investor_page:
+        #         links = extract_report_links(investor_page)
+        #         for link in links:
+        #             download_file(link, save_dir="data/raw/announcements/website_announcements")
         
         # 保存汇总结果
         print(f"\n✅ 公司 {company_name} 数据采集完成！")
@@ -391,7 +403,13 @@ class CompanyDataCollector:
                     "count": len(eastmoney_data['result']['data']),
                     "data": eastmoney_data
                 }
-                print(f"  - 东方财富财报采集成功: {len(eastmoney_data['result']['data'])}条记录")
+                # 检查实际保存的文件数量
+                eastmoney_save_dir = f"{self.output_dir}/financial_reports/eastmoney"
+                if os.path.exists(eastmoney_save_dir):
+                    actual_files = len([f for f in os.listdir(eastmoney_save_dir) if f.endswith('.json')])
+                    print(f"  - 东方财富财报采集成功: {actual_files}条记录")
+                else:
+                    print(f"  - 东方财富财报采集成功: {len(eastmoney_data['result']['data'])}条记录")
             else:
                 results["sources"]["eastmoney"] = {
                     "status": "no_data",
@@ -418,7 +436,13 @@ class CompanyDataCollector:
                     "count": len(szse_data.get('data', [])),
                     "data": szse_data
                 }
-                print(f"  - 深交所财报采集成功: {len(szse_data.get('data', []))}条记录")
+                # 检查实际保存的文件数量
+                szse_save_dir = f"{self.output_dir}/financial_reports/szse"
+                if os.path.exists(szse_save_dir):
+                    actual_files = len([f for f in os.listdir(szse_save_dir) if f.endswith('.json')])
+                    print(f"  - 深交所财报采集成功: {actual_files}条记录")
+                else:
+                    print(f"  - 深交所财报采集成功: {len(szse_data.get('data', []))}条记录")
             else:
                 results["sources"]["szse"] = {
                     "status": "no_data",
@@ -452,7 +476,13 @@ class CompanyDataCollector:
                         "count": len(cninfo_data),
                         "data": cninfo_data
                     }
-                    print(f"  - 巨潮资讯网财报采集成功: {len(cninfo_data)}份报告")
+                    # 检查实际保存的文件数量
+                    cninfo_save_dir = f"{self.output_dir}/financial_reports/cninfo"
+                    if os.path.exists(cninfo_save_dir):
+                        actual_files = len([f for f in os.listdir(cninfo_save_dir) if f.endswith('.json')])
+                        print(f"  - 巨潮资讯网财报采集成功: {actual_files}份报告")
+                    else:
+                        print(f"  - 巨潮资讯网财报采集成功: {len(cninfo_data)}份报告")
                 else:
                     results["sources"]["cninfo"] = {
                         "status": "no_data",
@@ -481,7 +511,13 @@ class CompanyDataCollector:
                     "count": len(thsl_data.get('data', [])) if isinstance(thsl_data, dict) else 0,
                     "data": thsl_data
                 }
-                print(f"  - 同花顺财报采集成功: {len(thsl_data.get('data', [])) if isinstance(thsl_data, dict) else 0}条记录")
+                # 检查实际保存的文件数量
+                thsl_save_dir = f"{self.output_dir}/financial_reports/thsl_financial_reports"
+                if os.path.exists(thsl_save_dir):
+                    actual_files = len([f for f in os.listdir(thsl_save_dir) if f.endswith('.json')])
+                    print(f"  - 同花顺财报采集成功: {actual_files}条记录")
+                else:
+                    print(f"  - 同花顺财报采集成功: {len(thsl_data.get('data', [])) if isinstance(thsl_data, dict) else 0}条记录")
             else:
                 results["sources"]["thsl"] = {
                     "status": "no_data",

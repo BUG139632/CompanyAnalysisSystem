@@ -254,7 +254,12 @@ def fetch_eastmoney_announcements(company_code: str, page_size: int = 50, page_i
     
     # 不再保存JSON文件，只返回数据
     if save:
-        print(f"东方财富网公告数据获取完成，共 {len(data.get('data', {}).get('list', []))} 条记录")
+        # 检查实际保存的文件数量（如果有保存目录的话）
+        if save_dir and os.path.exists(save_dir):
+            actual_files = len([f for f in os.listdir(save_dir) if f.endswith('.json')])
+            print(f"东方财富网公告数据获取完成，共 {actual_files} 条记录")
+        else:
+            print(f"东方财富网公告数据获取完成，共 {len(data.get('data', {}).get('list', []))} 条记录")
     
     return data
 
@@ -479,7 +484,7 @@ def get_pdf_link_by_selenium(detail_url):
         import time
         
         options = Options()
-        options.add_argument('--headless')
+        options.add_argument('--headless=new')
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
@@ -487,21 +492,27 @@ def get_pdf_link_by_selenium(detail_url):
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         # 为每个 Selenium 会话创建唯一的临时 profile，避免 "user data dir in use" 报错
-        import tempfile, uuid, shutil
+        import tempfile, uuid, shutil, random
         tmp_profile = tempfile.mkdtemp(prefix=f"selenium_profile_{uuid.uuid4()}_")
         options.add_argument(f"--user-data-dir={tmp_profile}")
         options.add_argument('--window-size=1920,1080')
+        # 使用随机端口避免冲突
+        debug_port = random.randint(9223, 9300)
+        options.add_argument(f'--remote-debugging-port={debug_port}')
+        # 默认使用环境变量 CHROME_BIN 指定的浏览器路径
+        env_bin = os.getenv('CHROME_BIN')
+        if env_bin and os.path.exists(env_bin):
+            options.binary_location = env_bin
         
-        # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+        # 在 Docker 环境中使用系统安装的Chrome和ChromeDriver
         if os.path.exists('/.dockerenv'):
             candidates = [
                 ('/usr/bin/google-chrome', '/usr/local/bin/chromedriver'),
-                ('/usr/bin/chromium', '/usr/lib/chromium/chromedriver'),
-                ('/usr/bin/chromium-browser', '/usr/lib/chromium-browser/chromedriver'),
             ]
             for bin_path, drv_path in candidates:
                 if os.path.exists(bin_path) and os.path.exists(drv_path):
-                    options.binary_location = bin_path
+                    if not env_bin:  # 只有在没有环境变量时才覆盖
+                        options.binary_location = bin_path
                     service = Service(drv_path)
                     break
             else:
@@ -755,24 +766,38 @@ def fetch_eastmoney_industry_reports_by_company(
             import time
             
             options = Options()
-            options.add_argument('--headless')
+            options.add_argument('--headless=new')
             options.add_argument('--disable-gpu')
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('--disable-blink-features=AutomationControlled')
             options.add_experimental_option("excludeSwitches", ["enable-automation"])
             options.add_experimental_option('useAutomationExtension', False)
+            options.add_argument('--window-size=1920,1080')
+            # 使用随机端口避免冲突
+            import random
+            debug_port = random.randint(9223, 9300)
+            options.add_argument(f'--remote-debugging-port={debug_port}')
             
-            # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+            # 创建唯一的用户数据目录
+            import tempfile, uuid, shutil
+            tmp_profile = tempfile.mkdtemp(prefix=f"selenium_profile_{uuid.uuid4()}_")
+            options.add_argument(f"--user-data-dir={tmp_profile}")
+            
+            # 设置Chrome二进制位置
+            env_bin = os.getenv('CHROME_BIN')
+            if env_bin and os.path.exists(env_bin):
+                options.binary_location = env_bin
+            
+            # 在 Docker 环境中使用系统安装的Chrome和ChromeDriver
             if os.path.exists('/.dockerenv'):
-                # Debian bookworm: chromium binary /usr/bin/chromium, driver /usr/lib/chromium/chromedriver
                 candidates = [
-                    ('/usr/bin/chromium', '/usr/lib/chromium/chromedriver'),
-                    ('/usr/bin/chromium-browser', '/usr/lib/chromium-browser/chromedriver'),
+                    ('/usr/bin/google-chrome', '/usr/local/bin/chromedriver'),
                 ]
                 for bin_path, drv_path in candidates:
                     if os.path.exists(bin_path) and os.path.exists(drv_path):
-                        options.binary_location = bin_path
+                        if not env_bin:  # 只有在没有环境变量时才覆盖
+                            options.binary_location = bin_path
                         service = Service(drv_path)
                         break
                 else:

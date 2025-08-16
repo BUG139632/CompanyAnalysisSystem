@@ -119,6 +119,13 @@ def analyze_management_model(output_path: str = "data/analysis/management_analys
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])
@@ -187,6 +194,13 @@ def analyze_business_model(output_path: str = "data/analysis/business_analysis.j
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])
@@ -253,6 +267,13 @@ def analyze_sales_model(output_path: str = "data/analysis/sales_analysis.json") 
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])
@@ -319,6 +340,13 @@ def analyze_rd_production_model(output_path: str = "data/analysis/rd_production_
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])
@@ -385,6 +413,13 @@ def analyze_assessment_model(output_path: str = "data/analysis/assessment_analys
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])
@@ -451,6 +486,13 @@ def analyze_innovation_capability(output_path: str = "data/analysis/innovation_a
                         return json.loads(json_str)
                     except Exception as e:
                         print("JSON解析失败:", e)
+                        # 尝试简单清洗后再解析
+                        try:
+                            clean = re.sub(r"[\x00-\x1f]+", "", json_str)  # 去除控制字符
+                            import json5
+                            return json5.loads(clean)
+                        except Exception:
+                            pass
                 return None
             if not metric_groups and isinstance(result.get('analysis_result'), str):
                 parsed = extract_json_from_response(result['analysis_result'])

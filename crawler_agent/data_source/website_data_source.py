@@ -45,7 +45,7 @@ def search_company_website(company_name: str, llm_func=None) -> Optional[str]:
             print(f"[官网采集] Google搜索: {url}")
 
         options = Options()
-        options.add_argument('--headless')
+        options.add_argument('--headless=new')
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
@@ -54,15 +54,73 @@ def search_company_website(company_name: str, llm_func=None) -> Optional[str]:
         options.add_experimental_option('useAutomationExtension', False)
         # 设定中英文以提升选择器稳定性
         options.add_argument('--lang=zh-CN,zh')
+        options.add_argument('--window-size=1920,1080')
+        # 额外的稳定性选项
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
+        options.add_argument('--disable-images')
+        options.add_argument('--disable-background-timer-throttling')
+        options.add_argument('--disable-backgrounding-occluded-windows')
+        options.add_argument('--disable-renderer-backgrounding')
+        options.add_argument('--disable-features=TranslateUI')
+        options.add_argument('--disable-ipc-flooding-protection')
+        
+        # 使用随机端口避免冲突
+        import random
+        debug_port = random.randint(9223, 9300)
+        options.add_argument(f'--remote-debugging-port={debug_port}')
 
-        # 在 Docker 环境中使用系统安装的 Chromium 和 ChromeDriver
+        # 创建唯一的用户数据目录
+        import tempfile
+        import uuid
+        import shutil
+        tmp_profile = tempfile.mkdtemp(prefix=f"selenium_profile_{uuid.uuid4()}_")
+        options.add_argument(f"--user-data-dir={tmp_profile}")
+
+        # 设置Chrome二进制位置和ChromeDriver
+        env_bin = os.getenv('CHROME_BIN')
+        if env_bin and os.path.exists(env_bin):
+            options.binary_location = env_bin
+        
+        # 检测环境并设置合适的Chrome和Driver路径
         if os.path.exists('/.dockerenv'):
-            options.binary_location = '/usr/bin/chromium'
-            service = Service('/usr/bin/chromedriver')
+            # Docker环境：使用安装的google-chrome
+            candidates = [
+                ('/usr/bin/google-chrome', '/usr/local/bin/chromedriver'),
+            ]
+            service = None
+            for bin_path, drv_path in candidates:
+                if os.path.exists(bin_path) and os.path.exists(drv_path):
+                    if not env_bin:  # 只有在没有环境变量时才覆盖
+                        options.binary_location = bin_path
+                    service = Service(drv_path)
+                    break
+            else:
+                # 如果都没找到，使用ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
         else:
             service = Service(ChromeDriverManager().install())
 
-        driver = webdriver.Chrome(service=service, options=options)
+        if os.environ.get("QUIET", "1") != "1":
+            print(f"[官网采集] Chrome binary: {options.binary_location if hasattr(options, 'binary_location') else 'default'}")
+            print(f"[官网采集] ChromeDriver: {service.path}")
+            print(f"[官网采集] 用户数据目录: {tmp_profile}")
+
+        try:
+            driver = webdriver.Chrome(service=service, options=options)
+        except Exception as e:
+            print(f"[官网采集] Chrome启动失败，尝试基本配置: {e}")
+            # 使用最基本的配置重试
+            basic_options = Options()
+            basic_options.add_argument('--headless=new')
+            basic_options.add_argument('--no-sandbox')
+            basic_options.add_argument('--disable-dev-shm-usage')
+            if env_bin and os.path.exists(env_bin):
+                basic_options.binary_location = env_bin
+            elif os.path.exists('/.dockerenv') and os.path.exists('/usr/bin/google-chrome'):
+                basic_options.binary_location = '/usr/bin/google-chrome'
+            driver = webdriver.Chrome(service=service, options=basic_options)
+
         try:
             driver.get(url)
 
@@ -144,8 +202,22 @@ def search_company_website(company_name: str, llm_func=None) -> Optional[str]:
             return None
         finally:
             driver.quit()
-    except Exception as e:
-        print(f"[官网采集] Selenium功能失败: {e}")
+            # 清理临时用户数据目录
+            try:
+                import shutil
+                shutil.rmtree(tmp_profile, ignore_errors=True)
+            except Exception:
+                pass
+    except Exception:
+        # 打印简短失败信息，避免在控制台输出冗长的Selenium堆栈
+        print("官网数据采集失败")
+        # 确保临时目录被清理
+        try:
+            import shutil
+            if 'tmp_profile' in locals():
+                shutil.rmtree(tmp_profile, ignore_errors=True)
+        except Exception:
+            pass
         return None
 
 

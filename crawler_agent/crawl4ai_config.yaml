@@ -14,9 +14,10 @@ llm:
 
 # 爬虫配置
 crawler:
-  verbose: true
-  headless: true
-  browser_type: "chromium"
+  # Basic crawler configurations
+  verbose: false
+  sleep: 2
+  browser_type: "chrome"
   timeout: 30
   max_retries: 3
   concurrent_limit: 5  # 并发爬取限制

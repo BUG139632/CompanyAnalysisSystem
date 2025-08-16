@@ -154,7 +154,7 @@ def download_szse_pdfs_playwright(announcements, save_dir, max_count=5):
     pdf_anns_sorted = sorted(pdf_anns, key=extract_year, reverse=True)[:max_count]
     os.makedirs(save_dir, exist_ok=True)
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chrome.launch(headless=True)
         context = browser.new_context(accept_downloads=True)
         page = context.new_page()
         for ann in pdf_anns_sorted:

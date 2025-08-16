@@ -118,7 +118,7 @@ class CompanyFinancialReportCrawler:
             self.crawler = AsyncWebCrawler(
                 verbose=False,
                 headless=True,
-                browser_type="chromium"
+                browser_type="chrome"
             )
 
             # 官方推荐方式初始化LLM策略（直接传llm_provider等参数）

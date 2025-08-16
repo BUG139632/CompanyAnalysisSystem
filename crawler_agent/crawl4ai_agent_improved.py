@@ -628,10 +628,11 @@ class ImprovedCrawl4AIAgent:
         crawler_config = self.config_manager.get_crawler_config()
         
         self.crawler = AsyncWebCrawler(
-            verbose=crawler_config.get('verbose', False),
-            headless=crawler_config.get('headless', True),
-            browser_type=crawler_config.get('browser_type', 'chromium'),
-            timeout=crawler_config.get('timeout', 30)
+            verbose=False,
+            headless=True,
+            browser_type=crawler_config.get('browser_type', 'chrome'),
+            wait_for=crawler_config.get('wait_for', 3000),
+            timeout=crawler_config.get('timeout', 30000)
         )
         
         logger.info("Crawl4AI agent initialized")

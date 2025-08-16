@@ -24,7 +24,7 @@ WORKDIR /app
 COPY . .
 
 # 创建必要目录并开放写权限
-RUN mkdir -p /app/output /app/data /app/logs && chmod 777 /app/output /app/data /app/logs
+RUN mkdir -p /app/logs /app/output /app/data /app/crawl_results /app/faiss_industry_reports && chmod 777 /app/logs /app/output /app/data /app/crawl_results /app/faiss_industry_reports
 
 # 创建并激活虚拟环境
 RUN python3 -m venv /opt/venv
@@ -52,6 +52,8 @@ def get_chrome_driver():\n\
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 ENV DISPLAY=:99
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
 # 切换回非root用户运行
 USER 1200:1201

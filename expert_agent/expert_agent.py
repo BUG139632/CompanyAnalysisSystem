@@ -42,7 +42,11 @@ class ExpertAgent:
             # 默认路径，可根据实际情况调整
             vector_db_dir = os.path.join(os.path.dirname(__file__), '../faiss_industry_reports')
         self.embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
-        self.vectorstore = FAISS.load_local(vector_db_dir, self.embeddings, allow_dangerous_deserialization=True)
+        if os.path.exists(vector_db_dir) and os.listdir(vector_db_dir):
+            self.vectorstore = FAISS.load_local(vector_db_dir, self.embeddings, allow_dangerous_deserialization=True)
+        else:
+            print(f"[警告] 向量库目录不存在或为空: {vector_db_dir}，跳过向量检索")
+            self.vectorstore = None
 
     def search_knowledge(self, query, top_k=5):
         """用向量数据库检索相关知识片段"""
